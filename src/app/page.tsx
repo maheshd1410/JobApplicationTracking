@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Application, statusOptions } from "@/lib/types";
@@ -32,7 +32,7 @@ function toDateInput(date: Date) {
 }
 
 function formatShort(dateStr: string | null) {
-  if (!dateStr) return "—";
+  if (!dateStr) return "â€”";
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString(undefined, {
     month: "short",
@@ -41,7 +41,7 @@ function formatShort(dateStr: string | null) {
 }
 
 function formatLong(dateStr: string | null) {
-  if (!dateStr) return "—";
+  if (!dateStr) return "â€”";
   const date = new Date(`${dateStr}T00:00:00`);
   return date.toLocaleDateString(undefined, {
     year: "numeric",
@@ -545,7 +545,7 @@ export default function Home() {
                         {formatShort(item.follow_up_date)}
                       </td>
                       <td className="px-3 py-3">
-                        {item.source ?? "—"}
+                        {item.source ?? "â€”"}
                       </td>
                     </tr>
                   ))}
