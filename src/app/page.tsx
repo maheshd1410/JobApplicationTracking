@@ -211,11 +211,14 @@ export default function Home() {
         body: JSON.stringify(selected),
       });
 
+      const payload = await res.json();
+
       if (!res.ok) {
-        throw new Error("Failed to update application.");
+        const message =
+          payload?.error || "Failed to update application.";
+        throw new Error(message);
       }
 
-      const payload = await res.json();
       const updated = payload?.data as Application | undefined;
 
       if (!updated?.id) {

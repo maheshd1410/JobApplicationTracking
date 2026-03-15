@@ -78,5 +78,12 @@ export async function PATCH(
     .prepare("SELECT * FROM applications WHERE id = ?")
     .get(params.id);
 
+  if (!updated) {
+    return NextResponse.json(
+      { error: "Application not found." },
+      { status: 404 }
+    );
+  }
+
   return NextResponse.json({ data: updated });
 }
