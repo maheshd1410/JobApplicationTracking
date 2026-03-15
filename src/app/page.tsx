@@ -215,6 +215,19 @@ export default function Home() {
         throw new Error("Failed to update application.");
       }
 
+      const payload = await res.json();
+      const updated = payload.data as Application;
+
+      setApplications((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setFollowUps((prev) => {
+        const remaining = prev.filter((item) => item.id !== updated.id);
+        const isDue =
+          updated.follow_up_date && updated.follow_up_date <= today;
+        return isDue ? [updated, ...remaining] : remaining;
+      });
+
       setSelected(null);
       setFilters((prev) => ({ ...prev }));
     } catch (err) {
