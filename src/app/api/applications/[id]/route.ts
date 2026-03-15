@@ -67,10 +67,18 @@ export async function PATCH(
   }
 
   if (!fields.length) {
-    return NextResponse.json(
-      { error: "No updates provided." },
-      { status: 400 }
-    );
+    const existing = db
+      .prepare("SELECT * FROM applications WHERE id = ?")
+      .get(params.id);
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: `Application not found for id: ${params.id}` },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({ data: existing });
   }
 
   fields.push("updated_at = ?");
