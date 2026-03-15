@@ -11,7 +11,11 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
-  if (!params?.id) {
+  const url = new URL(request.url);
+  const fallbackId = url.pathname.split("/").pop();
+  const id = params?.id ?? fallbackId ?? "";
+
+  if (!id) {
     return NextResponse.json(
       { error: "Missing application id." },
       { status: 400 }
@@ -83,7 +87,7 @@ export async function PATCH(
 
   fields.push("updated_at = ?");
   values.push(new Date().toISOString());
-  values.push(params.id);
+  values.push(id);
 
   db.prepare(`UPDATE applications SET ${fields.join(", ")} WHERE id = ?`).run(
     ...values
@@ -91,11 +95,11 @@ export async function PATCH(
 
   const updated = db
     .prepare("SELECT * FROM applications WHERE id = ?")
-    .get(params.id);
+    .get(id);
 
   if (!updated) {
     return NextResponse.json(
-      { error: `Application not found for id: ${params.id}` },
+      { error: `Application not found for id: ${id}` },
       { status: 404 }
     );
   }
