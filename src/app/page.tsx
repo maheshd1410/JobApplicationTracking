@@ -136,8 +136,8 @@ export default function Home() {
 
         if (ignore) return;
 
-        setApplications(listJson.data ?? []);
-        setFollowUps(followJson.data ?? []);
+        setApplications((listJson.data ?? []).filter(Boolean));
+        setFollowUps((followJson.data ?? []).filter(Boolean));
         setMetrics({
           appliedToday: metricsJson.appliedToday ?? 0,
           total: metricsJson.total ?? 0,
@@ -216,13 +216,21 @@ export default function Home() {
       }
 
       const payload = await res.json();
-      const updated = payload.data as Application;
+      const updated = payload?.data as Application | undefined;
+
+      if (!updated?.id) {
+        throw new Error("Update failed to return a record.");
+      }
 
       setApplications((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item))
+        prev
+          .filter(Boolean)
+          .map((item) => (item.id === updated.id ? updated : item))
       );
       setFollowUps((prev) => {
-        const remaining = prev.filter((item) => item.id !== updated.id);
+        const remaining = prev
+          .filter(Boolean)
+          .filter((item) => item.id !== updated.id);
         const isDue =
           updated.follow_up_date && updated.follow_up_date <= today;
         return isDue ? [updated, ...remaining] : remaining;
