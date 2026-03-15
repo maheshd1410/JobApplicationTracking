@@ -11,6 +11,13 @@ export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  if (!params?.id) {
+    return NextResponse.json(
+      { error: "Missing application id." },
+      { status: 400 }
+    );
+  }
+
   const body = await request.json();
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -80,7 +87,7 @@ export async function PATCH(
 
   if (!updated) {
     return NextResponse.json(
-      { error: "Application not found." },
+      { error: `Application not found for id: ${params.id}` },
       { status: 404 }
     );
   }

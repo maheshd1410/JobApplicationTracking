@@ -201,6 +201,10 @@ export default function Home() {
 
   const handleUpdate = async () => {
     if (!selected) return;
+    if (!selected.id) {
+      setError("No application id found for update.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
