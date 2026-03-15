@@ -205,6 +205,10 @@ export default function Home() {
       setError("No application id found for update.");
       return;
     }
+    if (typeof selected.status === "string" && !selected.status.trim()) {
+      setError("Status is required.");
+      return;
+    }
     setSaving(true);
     setError(null);
 
