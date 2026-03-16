@@ -9,8 +9,9 @@ function isValidStatus(status: string | null) {
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
   const id = params?.id ?? fallbackId ?? "";
