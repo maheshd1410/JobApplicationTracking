@@ -75,6 +75,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Application | null>(null);
   const [duplicate, setDuplicate] = useState<Application | null>(null);
+  const [duplicateReason, setDuplicateReason] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({
     company: "",
     role_title: "",
@@ -164,6 +165,7 @@ export default function Home() {
     setSaving(true);
     setError(null);
     setDuplicate(null);
+    setDuplicateReason(null);
 
     try {
       const payload = {
@@ -181,6 +183,11 @@ export default function Home() {
 
       if (res.status === 409) {
         setDuplicate(payloadResponse.existing ?? null);
+        setDuplicateReason(
+          payloadResponse.matchType === "partial"
+            ? "Partial match on company and role."
+            : "Case-insensitive exact match on company and role."
+        );
         throw new Error(payloadResponse.error ?? "Possible duplicate found.");
       }
 
@@ -595,7 +602,9 @@ export default function Home() {
             {duplicate && (
               <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 A similar application already exists: {duplicate.company} —{" "}
-                {duplicate.role_title}. You can still save this one if you want.
+                {duplicate.role_title}.{" "}
+                {duplicateReason ? `(${duplicateReason})` : ""} You can still save
+                this one if you want.
                 <div className="mt-3 flex flex-wrap gap-3">
                   <button
                     className="rounded-full bg-[var(--accent-2)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"

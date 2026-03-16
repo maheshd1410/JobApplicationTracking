@@ -79,26 +79,55 @@ export async function POST(request: Request) {
   }
 
   if (!force) {
-    const { data: existing, error: existingError } = await supabase
+    const { data: exactMatch, error: exactError } = await supabase
       .from("applications")
       .select("*")
-      .eq("company", company)
-      .eq("role_title", roleTitle)
+      .ilike("company", company)
+      .ilike("role_title", roleTitle)
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (existingError) {
+    if (exactError) {
       return NextResponse.json(
-        { error: existingError.message },
+        { error: exactError.message },
         { status: 500 }
       );
     }
 
-    if (existing && existing.length > 0) {
+    if (exactMatch && exactMatch.length > 0) {
       return NextResponse.json(
         {
-          error: "Possible duplicate found for this company and role.",
-          existing: existing[0],
+          error:
+            "Possible duplicate found (case-insensitive exact match for company and role).",
+          existing: exactMatch[0],
+          matchType: "exact",
+        },
+        { status: 409 }
+      );
+    }
+
+    const { data: partialMatch, error: partialError } = await supabase
+      .from("applications")
+      .select("*")
+      .ilike("company", `%${company}%`)
+      .ilike("role_title", `%${roleTitle}%`)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (partialError) {
+      return NextResponse.json(
+        { error: partialError.message },
+        { status: 500 }
+      );
+    }
+
+    if (partialMatch && partialMatch.length > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "Possible duplicate found (partial match for company and role).",
+          existing: partialMatch[0],
+          matchType: "partial",
         },
         { status: 409 }
       );
