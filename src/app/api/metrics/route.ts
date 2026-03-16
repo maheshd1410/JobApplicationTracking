@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -12,16 +12,25 @@ export async function GET(request: Request) {
     );
   }
 
-  const appliedToday = db
-    .prepare("SELECT COUNT(*) as count FROM applications WHERE date_applied = ?")
-    .get(date) as { count: number };
+  const { count: appliedTodayCount, error: appliedError } = await supabase
+    .from("applications")
+    .select("id", { count: "exact", head: true })
+    .eq("date_applied", date);
 
-  const total = db
-    .prepare("SELECT COUNT(*) as count FROM applications")
-    .get() as { count: number };
+  if (appliedError) {
+    return NextResponse.json({ error: appliedError.message }, { status: 500 });
+  }
+
+  const { count: totalCount, error: totalError } = await supabase
+    .from("applications")
+    .select("id", { count: "exact", head: true });
+
+  if (totalError) {
+    return NextResponse.json({ error: totalError.message }, { status: 500 });
+  }
 
   return NextResponse.json({
-    appliedToday: appliedToday.count,
-    total: total.count,
+    appliedToday: appliedTodayCount ?? 0,
+    total: totalCount ?? 0,
   });
 }

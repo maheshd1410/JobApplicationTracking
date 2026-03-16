@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { statusOptions } from "@/lib/types";
 
 function isValidStatus(status: string | null) {
@@ -23,32 +23,25 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const fields: string[] = [];
-  const values: unknown[] = [];
+  const updates: Record<string, unknown> = {};
 
   if (body.company !== undefined) {
-    fields.push("company = ?");
-    values.push(String(body.company).trim());
+    updates.company = String(body.company).trim();
   }
   if (body.role_title !== undefined) {
-    fields.push("role_title = ?");
-    values.push(String(body.role_title).trim());
+    updates.role_title = String(body.role_title).trim();
   }
   if (body.location !== undefined) {
-    fields.push("location = ?");
-    values.push(body.location ? String(body.location).trim() : null);
+    updates.location = body.location ? String(body.location).trim() : null;
   }
   if (body.job_link !== undefined) {
-    fields.push("job_link = ?");
-    values.push(body.job_link ? String(body.job_link).trim() : null);
+    updates.job_link = body.job_link ? String(body.job_link).trim() : null;
   }
   if (body.source !== undefined) {
-    fields.push("source = ?");
-    values.push(body.source ? String(body.source).trim() : null);
+    updates.source = body.source ? String(body.source).trim() : null;
   }
   if (body.date_applied !== undefined) {
-    fields.push("date_applied = ?");
-    values.push(String(body.date_applied).trim());
+    updates.date_applied = String(body.date_applied).trim();
   }
   if (body.status !== undefined) {
     const status = String(body.status).trim();
@@ -58,26 +51,27 @@ export async function PATCH(
         { status: 400 }
       );
     }
-    fields.push("status = ?");
-    values.push(status);
+    updates.status = status;
   }
   if (body.follow_up_date !== undefined) {
-    fields.push("follow_up_date = ?");
-    values.push(body.follow_up_date ? String(body.follow_up_date) : null);
+    updates.follow_up_date = body.follow_up_date
+      ? String(body.follow_up_date)
+      : null;
   }
   if (body.notes !== undefined) {
-    fields.push("notes = ?");
-    values.push(body.notes ? String(body.notes) : null);
+    updates.notes = body.notes ? String(body.notes) : null;
   }
 
-  if (!fields.length) {
-    const existing = db
-      .prepare("SELECT * FROM applications WHERE id = ?")
-      .get(params.id);
+  if (!Object.keys(updates).length) {
+    const { data: existing, error } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("id", id)
+      .single();
 
-    if (!existing) {
+    if (error || !existing) {
       return NextResponse.json(
-        { error: `Application not found for id: ${params.id}` },
+        { error: `Application not found for id: ${id}` },
         { status: 404 }
       );
     }
@@ -85,24 +79,21 @@ export async function PATCH(
     return NextResponse.json({ data: existing });
   }
 
-  fields.push("updated_at = ?");
-  values.push(new Date().toISOString());
-  values.push(id);
+  updates.updated_at = new Date().toISOString();
 
-  db.prepare(`UPDATE applications SET ${fields.join(", ")} WHERE id = ?`).run(
-    ...values
-  );
+  const { data, error } = await supabase
+    .from("applications")
+    .update(updates)
+    .eq("id", id)
+    .select("*")
+    .single();
 
-  const updated = db
-    .prepare("SELECT * FROM applications WHERE id = ?")
-    .get(id);
-
-  if (!updated) {
+  if (error || !data) {
     return NextResponse.json(
-      { error: `Application not found for id: ${id}` },
+      { error: error?.message ?? `Application not found for id: ${id}` },
       { status: 404 }
     );
   }
 
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({ data });
 }

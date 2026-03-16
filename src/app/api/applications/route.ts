@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { statusOptions } from "@/lib/types";
 
 function isValidStatus(status: string | null) {
@@ -17,46 +17,43 @@ export async function GET(request: Request) {
   const followUpDue = url.searchParams.get("followUpDue");
   const followUpDate = url.searchParams.get("followUpDate");
 
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
+  let query = supabase.from("applications").select("*");
 
   if (isValidStatus(status)) {
-    conditions.push("status = ?");
-    params.push(status as string);
+    query = query.eq("status", status as string);
   }
 
   if (source) {
-    conditions.push("source = ?");
-    params.push(source);
+    query = query.eq("source", source);
   }
 
   if (q) {
-    conditions.push("(company LIKE ? OR role_title LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`);
+    query = query.or(`company.ilike.%${q}%,role_title.ilike.%${q}%`);
   }
 
   if (dateFrom) {
-    conditions.push("date_applied >= ?");
-    params.push(dateFrom);
+    query = query.gte("date_applied", dateFrom);
   }
 
   if (dateTo) {
-    conditions.push("date_applied <= ?");
-    params.push(dateTo);
+    query = query.lte("date_applied", dateTo);
   }
 
   if (followUpDue === "1" && followUpDate) {
-    conditions.push("follow_up_date IS NOT NULL AND follow_up_date <= ?");
-    params.push(followUpDate);
+    query = query
+      .not("follow_up_date", "is", null)
+      .lte("follow_up_date", followUpDate);
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
-  const stmt = db.prepare(
-    `SELECT * FROM applications ${where} ORDER BY date_applied DESC, created_at DESC`
-  );
-  const rows = stmt.all(...params);
+  const { data, error } = await query
+    .order("date_applied", { ascending: false })
+    .order("created_at", { ascending: false });
 
-  return NextResponse.json({ data: rows });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ data: data ?? [] });
 }
 
 function addDays(dateStr: string, days: number) {
@@ -85,33 +82,29 @@ export async function POST(request: Request) {
     ? String(body.follow_up_date)
     : addDays(dateApplied, 7);
 
-  const id = crypto.randomUUID();
-
-  db.prepare(
-    `
-    INSERT INTO applications (
-      id, company, role_title, location, job_link, source,
-      date_applied, status, follow_up_date, notes, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `
-  ).run(
-    id,
+  const payload = {
     company,
-    roleTitle,
-    body.location ?? null,
-    body.job_link ?? null,
-    body.source ?? null,
-    dateApplied,
+    role_title: roleTitle,
+    location: body.location ?? null,
+    job_link: body.job_link ?? null,
+    source: body.source ?? null,
+    date_applied: dateApplied,
     status,
-    followUpDate,
-    body.notes ?? null,
-    now,
-    now
-  );
+    follow_up_date: followUpDate,
+    notes: body.notes ?? null,
+    created_at: now,
+    updated_at: now,
+  };
 
-  const created = db
-    .prepare("SELECT * FROM applications WHERE id = ?")
-    .get(id);
+  const { data, error } = await supabase
+    .from("applications")
+    .insert(payload)
+    .select("*")
+    .single();
 
-  return NextResponse.json({ data: created }, { status: 201 });
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ data }, { status: 201 });
 }

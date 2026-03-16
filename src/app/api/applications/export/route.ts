@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { supabase } from "@/lib/supabase";
 import { toCsv } from "@/lib/csv";
 
 export async function GET() {
-  const rows = db
-    .prepare("SELECT * FROM applications ORDER BY date_applied DESC")
-    .all();
+  const { data, error } = await supabase
+    .from("applications")
+    .select("*")
+    .order("date_applied", { ascending: false });
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const columns = [
     "id",
@@ -22,7 +27,7 @@ export async function GET() {
     "updated_at",
   ];
 
-  const csv = toCsv(rows, columns);
+  const csv = toCsv(data ?? [], columns);
 
   return new NextResponse(csv, {
     headers: {
