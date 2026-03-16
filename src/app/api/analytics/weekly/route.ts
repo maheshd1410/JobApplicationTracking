@@ -29,6 +29,8 @@ export async function GET() {
   }
 
   const weekMap = new Map<string, number>();
+  const appliedMap = new Map<string, number>();
+  const queueMap = new Map<string, number>();
   const statusMap = new Map<string, number>();
 
   statusOptions.forEach((status) => statusMap.set(status, 0));
@@ -40,10 +42,21 @@ export async function GET() {
 
     if (row.status) {
       statusMap.set(row.status, (statusMap.get(row.status) ?? 0) + 1);
+      if (row.status === "Applied") {
+        appliedMap.set(weekStart, (appliedMap.get(weekStart) ?? 0) + 1);
+      }
+      if (row.status === "In Queue") {
+        queueMap.set(weekStart, (queueMap.get(weekStart) ?? 0) + 1);
+      }
     }
   });
 
-  const weeks: { weekStart: string; count: number }[] = [];
+  const weeks: {
+    weekStart: string;
+    count: number;
+    applied: number;
+    inQueue: number;
+  }[] = [];
   for (let i = 8; i >= 0; i -= 1) {
     const week = new Date();
     week.setUTCDate(week.getUTCDate() - i * 7);
@@ -51,6 +64,8 @@ export async function GET() {
     weeks.push({
       weekStart,
       count: weekMap.get(weekStart) ?? 0,
+      applied: appliedMap.get(weekStart) ?? 0,
+      inQueue: queueMap.get(weekStart) ?? 0,
     });
   }
 

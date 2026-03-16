@@ -28,7 +28,12 @@ type FormState = {
   notes: string;
 };
 
-type WeeklyPoint = { weekStart: string; count: number };
+type WeeklyPoint = {
+  weekStart: string;
+  count: number;
+  applied: number;
+  inQueue: number;
+};
 type StatusPoint = { status: string; count: number };
 
 function toDateInput(date: Date) {
@@ -820,20 +825,44 @@ export default function Home() {
               <div className="mt-5 flex items-end gap-3">
                 {weekly.map((point) => {
                   const max = Math.max(...weekly.map((p) => p.count), 1);
-                  const height = Math.max((point.count / max) * 140, 8);
+                  const appliedHeight = Math.max(
+                    (point.applied / max) * 140,
+                    0
+                  );
+                  const queueHeight = Math.max(
+                    (point.inQueue / max) * 140,
+                    0
+                  );
                   return (
                     <div key={point.weekStart} className="flex flex-col items-center gap-2">
-                      <div
-                        className="w-6 rounded-full bg-[var(--accent)]"
-                        style={{ height }}
-                        title={`${point.count} applications`}
-                      />
+                      <div className="flex h-[140px] w-6 flex-col justify-end rounded-full border border-[var(--line)] overflow-hidden">
+                        <div
+                          className="w-full bg-[var(--accent-2)]"
+                          style={{ height: queueHeight }}
+                          title={`${point.inQueue} in queue`}
+                        />
+                        <div
+                          className="w-full bg-[var(--accent)]"
+                          style={{ height: appliedHeight }}
+                          title={`${point.applied} applied`}
+                        />
+                      </div>
                       <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
                         {formatWeekLabel(point.weekStart)}
                       </span>
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-4 flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                  Applied
+                </span>
+                <span className="flex items-center gap-2">
+                  <span className="h-2 w-2 rounded-full bg-[var(--accent-2)]" />
+                  In Queue
+                </span>
               </div>
               <div className="mt-6 grid gap-2 text-xs text-[var(--muted)]">
                 {statusBreakdown.map((item) => (
