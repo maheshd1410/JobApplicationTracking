@@ -69,12 +69,40 @@ export async function POST(request: Request) {
   const roleTitle = String(body.role_title ?? "").trim();
   const dateApplied = String(body.date_applied ?? "").trim();
   const status = String(body.status ?? "Applied").trim();
+  const force = Boolean(body.force);
 
   if (!company || !roleTitle || !dateApplied || !isValidStatus(status)) {
     return NextResponse.json(
       { error: "Invalid payload." },
       { status: 400 }
     );
+  }
+
+  if (!force) {
+    const { data: existing, error: existingError } = await supabase
+      .from("applications")
+      .select("*")
+      .eq("company", company)
+      .eq("role_title", roleTitle)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (existingError) {
+      return NextResponse.json(
+        { error: existingError.message },
+        { status: 500 }
+      );
+    }
+
+    if (existing && existing.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Possible duplicate found for this company and role.",
+          existing: existing[0],
+        },
+        { status: 409 }
+      );
+    }
   }
 
   const now = new Date().toISOString();

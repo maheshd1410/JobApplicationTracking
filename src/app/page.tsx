@@ -74,6 +74,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Application | null>(null);
+  const [duplicate, setDuplicate] = useState<Application | null>(null);
   const [form, setForm] = useState<FormState>({
     company: "",
     role_title: "",
@@ -162,6 +163,7 @@ export default function Home() {
     event.preventDefault();
     setSaving(true);
     setError(null);
+    setDuplicate(null);
 
     try {
       const payload = {
@@ -175,10 +177,55 @@ export default function Home() {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) {
-        throw new Error("Failed to create application.");
+      const payloadResponse = await res.json();
+
+      if (res.status === 409) {
+        setDuplicate(payloadResponse.existing ?? null);
+        throw new Error(payloadResponse.error ?? "Possible duplicate found.");
       }
 
+      if (!res.ok) {
+        throw new Error(payloadResponse.error ?? "Failed to create application.");
+      }
+
+      setForm({
+        company: "",
+        role_title: "",
+        location: "",
+        job_link: "",
+        source: "",
+        date_applied: today,
+        status: "Applied",
+        follow_up_date: "",
+        notes: "",
+      });
+
+      setFilters((prev) => ({ ...prev }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleForceCreate = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/applications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...form, force: true }),
+      });
+
+      const payloadResponse = await res.json();
+
+      if (!res.ok) {
+        throw new Error(payloadResponse.error ?? "Failed to create application.");
+      }
+
+      setDuplicate(null);
       setForm({
         company: "",
         role_title: "",
@@ -543,6 +590,27 @@ export default function Home() {
             {error && (
               <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
+              </div>
+            )}
+            {duplicate && (
+              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                A similar application already exists: {duplicate.company} —{" "}
+                {duplicate.role_title}. You can still save this one if you want.
+                <div className="mt-3 flex flex-wrap gap-3">
+                  <button
+                    className="rounded-full bg-[var(--accent-2)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                    onClick={handleForceCreate}
+                    disabled={saving}
+                  >
+                    Save Anyway
+                  </button>
+                  <button
+                    className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
+                    onClick={() => setDuplicate(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
               </div>
             )}
 
