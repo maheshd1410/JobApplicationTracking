@@ -69,6 +69,7 @@ export default function Home() {
   });
   const [applications, setApplications] = useState<Application[]>([]);
   const [followUps, setFollowUps] = useState<Application[]>([]);
+  const [inQueue, setInQueue] = useState<Application[]>([]);
   const [metrics, setMetrics] = useState({ appliedToday: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -83,7 +84,7 @@ export default function Home() {
     job_link: "",
     source: "",
     date_applied: today,
-    status: "Applied",
+    status: "In Queue",
     follow_up_date: "",
     notes: "",
   });
@@ -118,28 +119,33 @@ export default function Home() {
           params.set("followUpDate", today);
         }
 
-        const [listRes, followRes, metricsRes] = await Promise.all([
+        const [listRes, followRes, queueRes, metricsRes] = await Promise.all([
           fetch(`/api/applications?${params.toString()}`, {
             cache: "no-store",
           }),
           fetch(`/api/applications?followUpDue=1&followUpDate=${today}`, {
             cache: "no-store",
           }),
+          fetch(`/api/applications?status=In%20Queue`, {
+            cache: "no-store",
+          }),
           fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
         ]);
 
-        if (!listRes.ok || !followRes.ok || !metricsRes.ok) {
+        if (!listRes.ok || !followRes.ok || !queueRes.ok || !metricsRes.ok) {
           throw new Error("Failed to load data.");
         }
 
         const listJson = await listRes.json();
         const followJson = await followRes.json();
+        const queueJson = await queueRes.json();
         const metricsJson = await metricsRes.json();
 
         if (ignore) return;
 
         setApplications((listJson.data ?? []).filter(Boolean));
         setFollowUps((followJson.data ?? []).filter(Boolean));
+        setInQueue((queueJson.data ?? []).filter(Boolean));
         setMetrics({
           appliedToday: metricsJson.appliedToday ?? 0,
           total: metricsJson.total ?? 0,
@@ -202,7 +208,7 @@ export default function Home() {
         job_link: "",
         source: "",
         date_applied: today,
-        status: "Applied",
+        status: "In Queue",
         follow_up_date: "",
         notes: "",
       });
@@ -240,7 +246,7 @@ export default function Home() {
         job_link: "",
         source: "",
         date_applied: today,
-        status: "Applied",
+        status: "In Queue",
         follow_up_date: "",
         notes: "",
       });
@@ -668,6 +674,45 @@ export default function Home() {
           </div>
 
           <aside className="flex flex-col gap-6">
+            <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-xl font-semibold">In Queue</h3>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    {inQueue.length} opportunities ready to apply
+                  </p>
+                </div>
+                <button
+                  className="rounded-full border border-[var(--line)] px-3 py-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)] hover:border-[var(--accent-2)]"
+                  onClick={() =>
+                    setFilters((prev) => ({
+                      ...prev,
+                      status: "In Queue",
+                    }))
+                  }
+                >
+                  View All
+                </button>
+              </div>
+              <div className="mt-4 flex flex-col gap-3">
+                {inQueue.slice(0, 6).map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-2xl border border-[var(--line)] bg-white px-4 py-3"
+                  >
+                    <div className="text-sm font-semibold">{item.company}</div>
+                    <div className="text-xs text-[var(--muted)]">
+                      {item.role_title}
+                    </div>
+                  </div>
+                ))}
+                {!inQueue.length && (
+                  <div className="text-sm text-[var(--muted)]">
+                    No roles queued yet. Add new opportunities to get started.
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
               <h3 className="text-xl font-semibold">Follow-up Due</h3>
               <p className="mt-1 text-sm text-[var(--muted)]">

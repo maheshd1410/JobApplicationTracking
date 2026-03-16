@@ -1,4 +1,5 @@
 export type ApplicationStatus =
+  | "In Queue"
   | "Applied"
   | "Screening"
   | "Interviewing"
@@ -22,6 +23,7 @@ export type Application = {
 };
 
 export const statusOptions: ApplicationStatus[] = [
+  "In Queue",
   "Applied",
   "Screening",
   "Interviewing",
