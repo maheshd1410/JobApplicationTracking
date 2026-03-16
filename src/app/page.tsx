@@ -9,6 +9,7 @@ type Filters = {
   status: string;
   source: string;
   q: string;
+  tags: string;
   dateFrom: string;
   dateTo: string;
   followUpDue: boolean;
@@ -23,8 +24,12 @@ type FormState = {
   date_applied: string;
   status: string;
   follow_up_date: string;
+  tags: string;
   notes: string;
 };
+
+type WeeklyPoint = { weekStart: string; count: number };
+type StatusPoint = { status: string; count: number };
 
 function toDateInput(date: Date) {
   const tzOffset = date.getTimezoneOffset() * 60000;
@@ -56,6 +61,21 @@ function addDays(dateStr: string, days: number) {
   return toDateInput(date);
 }
 
+function parseTags(input: string) {
+  return input
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function formatWeekLabel(weekStart: string) {
+  const date = new Date(`${weekStart}T00:00:00Z`);
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 export default function Home() {
   const today = useMemo(() => toDateInput(new Date()), []);
 
@@ -63,6 +83,7 @@ export default function Home() {
     status: "",
     source: "",
     q: "",
+    tags: "",
     dateFrom: "",
     dateTo: "",
     followUpDue: false,
@@ -70,6 +91,8 @@ export default function Home() {
   const [applications, setApplications] = useState<Application[]>([]);
   const [followUps, setFollowUps] = useState<Application[]>([]);
   const [inQueue, setInQueue] = useState<Application[]>([]);
+  const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
+  const [statusBreakdown, setStatusBreakdown] = useState<StatusPoint[]>([]);
   const [metrics, setMetrics] = useState({ appliedToday: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,6 +109,7 @@ export default function Home() {
     date_applied: today,
     status: "In Queue",
     follow_up_date: "",
+    tags: "",
     notes: "",
   });
 
@@ -112,6 +136,7 @@ export default function Home() {
         if (filters.status) params.set("status", filters.status);
         if (filters.source) params.set("source", filters.source);
         if (filters.q) params.set("q", filters.q);
+        if (filters.tags) params.set("tags", filters.tags);
         if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
         if (filters.dateTo) params.set("dateTo", filters.dateTo);
         if (filters.followUpDue) {
@@ -119,26 +144,35 @@ export default function Home() {
           params.set("followUpDate", today);
         }
 
-        const [listRes, followRes, queueRes, metricsRes] = await Promise.all([
-          fetch(`/api/applications?${params.toString()}`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/applications?followUpDue=1&followUpDate=${today}`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/applications?status=In%20Queue`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
-        ]);
+        const [listRes, followRes, queueRes, analyticsRes, metricsRes] =
+          await Promise.all([
+            fetch(`/api/applications?${params.toString()}`, {
+              cache: "no-store",
+            }),
+            fetch(`/api/applications?followUpDue=1&followUpDate=${today}`, {
+              cache: "no-store",
+            }),
+            fetch(`/api/applications?status=In%20Queue`, {
+              cache: "no-store",
+            }),
+            fetch(`/api/analytics/weekly`, { cache: "no-store" }),
+            fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
+          ]);
 
-        if (!listRes.ok || !followRes.ok || !queueRes.ok || !metricsRes.ok) {
+        if (
+          !listRes.ok ||
+          !followRes.ok ||
+          !queueRes.ok ||
+          !analyticsRes.ok ||
+          !metricsRes.ok
+        ) {
           throw new Error("Failed to load data.");
         }
 
         const listJson = await listRes.json();
         const followJson = await followRes.json();
         const queueJson = await queueRes.json();
+        const analyticsJson = await analyticsRes.json();
         const metricsJson = await metricsRes.json();
 
         if (ignore) return;
@@ -146,6 +180,8 @@ export default function Home() {
         setApplications((listJson.data ?? []).filter(Boolean));
         setFollowUps((followJson.data ?? []).filter(Boolean));
         setInQueue((queueJson.data ?? []).filter(Boolean));
+        setWeekly((analyticsJson.weeks ?? []).filter(Boolean));
+        setStatusBreakdown((analyticsJson.status ?? []).filter(Boolean));
         setMetrics({
           appliedToday: metricsJson.appliedToday ?? 0,
           total: metricsJson.total ?? 0,
@@ -176,6 +212,7 @@ export default function Home() {
     try {
       const payload = {
         ...form,
+        tags: parseTags(form.tags),
         follow_up_date: form.follow_up_date || undefined,
       };
 
@@ -210,6 +247,7 @@ export default function Home() {
         date_applied: today,
         status: "In Queue",
         follow_up_date: "",
+        tags: "",
         notes: "",
       });
 
@@ -229,7 +267,7 @@ export default function Home() {
       const res = await fetch("/api/applications", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, force: true }),
+        body: JSON.stringify({ ...form, tags: parseTags(form.tags), force: true }),
       });
 
       const payloadResponse = await res.json();
@@ -248,6 +286,7 @@ export default function Home() {
         date_applied: today,
         status: "In Queue",
         follow_up_date: "",
+        tags: "",
         notes: "",
       });
 
@@ -316,11 +355,50 @@ export default function Home() {
     }
   };
 
+  const handleInlineStatusChange = async (id: string, status: string) => {
+    if (!id) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/applications/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to update status.");
+      }
+      const updated = payload?.data as Application | undefined;
+      if (!updated?.id) {
+        throw new Error("Update failed to return a record.");
+      }
+      setApplications((prev) =>
+        prev
+          .filter(Boolean)
+          .map((item) => (item.id === updated.id ? updated : item))
+      );
+      setInQueue((prev) => {
+        const remaining = prev
+          .filter(Boolean)
+          .filter((item) => item.id !== updated.id);
+        return updated.status === "In Queue"
+          ? [updated, ...remaining]
+          : remaining;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const resetFilters = () => {
     setFilters({
       status: "",
       source: "",
       q: "",
+      tags: "",
       dateFrom: "",
       dateTo: "",
       followUpDue: false,
@@ -359,6 +437,12 @@ export default function Home() {
 
           <form
             onSubmit={handleSubmit}
+            onKeyDown={(event) => {
+              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+                event.preventDefault();
+                handleSubmit(event);
+              }
+            }}
             className="grid gap-4 rounded-2xl border border-[var(--line)] bg-white p-6 md:grid-cols-2"
           >
             <div>
@@ -490,6 +574,19 @@ export default function Home() {
                 placeholder="Hiring manager, referral contact, interview details"
               />
             </div>
+            <div className="md:col-span-2">
+              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
+                Tags
+              </label>
+              <input
+                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                value={form.tags}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, tags: e.target.value }))
+                }
+                placeholder="Referral, Urgent, Target"
+              />
+            </div>
             <div className="md:col-span-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div className="text-xs text-[var(--muted)]">
                 Required: Company, Role Title, Date Applied, Status
@@ -539,6 +636,14 @@ export default function Home() {
                 value={filters.q}
                 onChange={(e) =>
                   setFilters((prev) => ({ ...prev, q: e.target.value }))
+                }
+              />
+              <input
+                className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                placeholder="Tags (comma separated)"
+                value={filters.tags}
+                onChange={(e) =>
+                  setFilters((prev) => ({ ...prev, tags: e.target.value }))
                 }
               />
               <select
@@ -639,6 +744,7 @@ export default function Home() {
                     <th className="px-3">Status</th>
                     <th className="px-3">Follow-up</th>
                     <th className="px-3">Source</th>
+                    <th className="px-3">Tags</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -652,15 +758,47 @@ export default function Home() {
                       <td className="px-3 py-3">{item.role_title}</td>
                       <td className="px-3 py-3">{formatShort(item.date_applied)}</td>
                       <td className="px-3 py-3">
-                        <span className="rounded-full border border-[var(--line)] px-3 py-1 text-xs">
-                          {item.status}
-                        </span>
+                        <select
+                          className="rounded-full border border-[var(--line)] bg-transparent px-3 py-1 text-xs"
+                          value={item.status}
+                          onClick={(event) => event.stopPropagation()}
+                          onChange={(event) => {
+                            event.stopPropagation();
+                            handleInlineStatusChange(
+                              item.id,
+                              event.target.value
+                            );
+                          }}
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-3 py-3">
                         {formatShort(item.follow_up_date)}
                       </td>
                       <td className="px-3 py-3">
                         {item.source ?? "—"}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          {(item.tags ?? []).slice(0, 2).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] uppercase tracking-[0.18em]"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {(item.tags ?? []).length > 2 && (
+                            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
+                              +{(item.tags ?? []).length - 2}
+                            </span>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -674,6 +812,38 @@ export default function Home() {
           </div>
 
           <aside className="flex flex-col gap-6">
+            <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
+              <h3 className="text-xl font-semibold">Weekly Activity</h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Last 8 weeks of applications
+              </p>
+              <div className="mt-5 flex items-end gap-3">
+                {weekly.map((point) => {
+                  const max = Math.max(...weekly.map((p) => p.count), 1);
+                  const height = Math.max((point.count / max) * 140, 8);
+                  return (
+                    <div key={point.weekStart} className="flex flex-col items-center gap-2">
+                      <div
+                        className="w-6 rounded-full bg-[var(--accent)]"
+                        style={{ height }}
+                        title={`${point.count} applications`}
+                      />
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                        {formatWeekLabel(point.weekStart)}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-6 grid gap-2 text-xs text-[var(--muted)]">
+                {statusBreakdown.map((item) => (
+                  <div key={item.status} className="flex items-center justify-between">
+                    <span className="uppercase tracking-[0.2em]">{item.status}</span>
+                    <span className="font-semibold text-[var(--ink)]">{item.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -819,6 +989,21 @@ export default function Home() {
                       value={selected.notes ?? ""}
                       onChange={(e) =>
                         setSelected({ ...selected, notes: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                      Tags
+                    </label>
+                    <input
+                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      value={(selected.tags ?? []).join(", ")}
+                      onChange={(e) =>
+                        setSelected({
+                          ...selected,
+                          tags: parseTags(e.target.value),
+                        })
                       }
                     />
                   </div>

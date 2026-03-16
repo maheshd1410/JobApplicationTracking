@@ -18,6 +18,7 @@ export type Application = {
   status: ApplicationStatus;
   follow_up_date: string | null;
   notes: string | null;
+  tags?: string[] | null;
   created_at: string;
   updated_at: string;
 };

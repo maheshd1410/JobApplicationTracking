@@ -62,6 +62,13 @@ export async function PATCH(
   if (body.notes !== undefined) {
     updates.notes = body.notes ? String(body.notes) : null;
   }
+  if (body.tags !== undefined) {
+    const tagsInput = Array.isArray(body.tags) ? body.tags : [];
+    const tags = tagsInput
+      .map((tag: string) => String(tag).trim())
+      .filter(Boolean);
+    updates.tags = tags.length ? tags : null;
+  }
 
   if (!Object.keys(updates).length) {
     const { data: existing, error } = await supabase

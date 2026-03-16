@@ -16,6 +16,7 @@ export async function GET(request: Request) {
   const dateTo = url.searchParams.get("dateTo");
   const followUpDue = url.searchParams.get("followUpDue");
   const followUpDate = url.searchParams.get("followUpDate");
+  const tagsParam = url.searchParams.get("tags");
 
   let query = supabase.from("applications").select("*");
 
@@ -45,6 +46,16 @@ export async function GET(request: Request) {
       .lte("follow_up_date", followUpDate);
   }
 
+  if (tagsParam) {
+    const tags = tagsParam
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    if (tags.length) {
+      query = query.contains("tags", tags);
+    }
+  }
+
   const { data, error } = await query
     .order("date_applied", { ascending: false })
     .order("created_at", { ascending: false });
@@ -70,6 +81,10 @@ export async function POST(request: Request) {
   const dateApplied = String(body.date_applied ?? "").trim();
   const status = String(body.status ?? "Applied").trim();
   const force = Boolean(body.force);
+  const tagsInput = Array.isArray(body.tags) ? body.tags : [];
+  const tags = tagsInput
+    .map((tag: string) => String(tag).trim())
+    .filter(Boolean);
 
   if (!company || !roleTitle || !dateApplied || !isValidStatus(status)) {
     return NextResponse.json(
@@ -149,6 +164,7 @@ export async function POST(request: Request) {
     status,
     follow_up_date: followUpDate,
     notes: body.notes ?? null,
+    tags: tags.length ? tags : null,
     created_at: now,
     updated_at: now,
   };

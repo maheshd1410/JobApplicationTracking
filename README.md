@@ -59,6 +59,7 @@ create table if not exists applications (
   status text not null,
   follow_up_date date,
   notes text,
+  tags text[] default '{}'::text[],
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -73,6 +74,18 @@ create index if not exists idx_applications_follow_up_date
   on applications (follow_up_date);
 create index if not exists idx_applications_company_role
   on applications (company, role_title);
+create index if not exists idx_applications_tags
+  on applications using gin (tags);
+```
+
+If you already created the table earlier, run:
+
+```sql
+alter table applications
+  add column if not exists tags text[] default '{}'::text[];
+
+create index if not exists idx_applications_tags
+  on applications using gin (tags);
 ```
 
 ## Deployment (Vercel)
