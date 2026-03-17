@@ -64,6 +64,44 @@ create table if not exists applications (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists opportunities (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  company text not null,
+  location text,
+  url text,
+  source text,
+  status text not null default 'New',
+  match_score numeric,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists daily_inventory (
+  id uuid primary key default gen_random_uuid(),
+  inventory_date date not null unique,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists inventory_items (
+  id uuid primary key default gen_random_uuid(),
+  inventory_id uuid not null references daily_inventory(id) on delete cascade,
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  decision text not null default 'Pending',
+  notes text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists audit_log (
+  id uuid primary key default gen_random_uuid(),
+  event_type text not null,
+  entity_type text not null,
+  entity_id uuid,
+  payload jsonb,
+  created_at timestamptz not null default now()
+);
+
 create index if not exists idx_applications_date_applied
   on applications (date_applied);
 create index if not exists idx_applications_status
@@ -76,6 +114,16 @@ create index if not exists idx_applications_company_role
   on applications (company, role_title);
 create index if not exists idx_applications_tags
   on applications using gin (tags);
+create index if not exists idx_opportunities_status
+  on opportunities (status);
+create index if not exists idx_opportunities_company
+  on opportunities (company);
+create index if not exists idx_inventory_date
+  on daily_inventory (inventory_date);
+create index if not exists idx_inventory_items_inventory
+  on inventory_items (inventory_id);
+create index if not exists idx_inventory_items_opportunity
+  on inventory_items (opportunity_id);
 ```
 
 If you already created the table earlier, run:
@@ -86,6 +134,16 @@ alter table applications
 
 create index if not exists idx_applications_tags
   on applications using gin (tags);
+```
+
+If you already created Phase 1 tables, use these safe updates when needed:
+
+```sql
+alter table opportunities
+  add column if not exists match_score numeric;
+
+alter table inventory_items
+  add column if not exists decision text default 'Pending';
 ```
 
 ## Deployment (Vercel)
