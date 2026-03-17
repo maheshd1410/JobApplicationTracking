@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -192,7 +192,7 @@ export default function InventoryPage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-3">{item.opportunity.source ?? "—"}</td>
+                    <td className="px-3 py-3">{item.opportunity.source ?? "â€”"}</td>
                     <td className="px-3 py-3">
                       {item.opportunity.url ? (
                         <a
@@ -204,7 +204,7 @@ export default function InventoryPage() {
                           Open
                         </a>
                       ) : (
-                        "—"
+                        "â€”"
                       )}
                     </td>
                   </tr>
