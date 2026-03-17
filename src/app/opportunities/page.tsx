@@ -1,4 +1,4 @@
-"use client";
+ï»¿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -387,8 +387,8 @@ export default function OpportunitiesPage() {
                         ))}
                       </select>
                     </td>
-                    <td className="px-3 py-3">{item.source ?? "—"}</td>
-                    <td className="px-3 py-3">{item.match_score ?? "—"}</td>
+                    <td className="px-3 py-3">{item.source ?? "â€”"}</td>
+                    <td className="px-3 py-3">{item.match_score ?? "â€”"}</td>
                     <td className="px-3 py-3">
                       {item.url ? (
                         <a
@@ -400,7 +400,7 @@ export default function OpportunitiesPage() {
                           Open
                         </a>
                       ) : (
-                        "—"
+                        "â€”"
                       )}
                     </td>
                   </tr>
@@ -416,3 +416,4 @@ export default function OpportunitiesPage() {
     </div>
   );
 }
+

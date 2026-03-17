@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import { Space_Grotesk, Source_Serif_4 } from "next/font/google";
 import "./globals.css";
 
@@ -42,3 +42,4 @@ export default function RootLayout({
     </html>
   );
 }
+
