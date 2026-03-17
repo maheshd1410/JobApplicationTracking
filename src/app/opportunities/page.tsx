@@ -51,6 +51,26 @@ export default function OpportunitiesPage() {
   }, [items]);
 
   const [sourceFilter, setSourceFilter] = useState("");
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    const loadGmailStatus = async () => {
+      try {
+        const res = await fetch("/api/gmail/status", { cache: "no-store" });
+        const payload = await res.json();
+        if (res.ok) {
+          setGmailConnected(Boolean(payload.connected));
+          setGmailEmail(payload.email ?? null);
+        }
+      } catch {
+        setGmailConnected(false);
+      }
+    };
+
+    loadGmailStatus();
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -84,6 +104,23 @@ export default function OpportunitiesPage() {
       ignore = true;
     };
   }, [filters, sourceFilter]);
+
+  const handleGmailSync = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/gmail/sync", { method: "POST" });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to sync Gmail.");
+      }
+      setFilters((prev) => ({ ...prev }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -159,6 +196,30 @@ export default function OpportunitiesPage() {
               Capture roles from Naukri, LinkedIn, or Gmail alerts and review
               them before applying.
             </p>
+          </div>
+          <div className="mt-6 flex flex-wrap items-center gap-3">
+            {!gmailConnected && (
+              <a
+                className="rounded-full bg-[var(--accent-2)] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                href="/api/google/connect"
+              >
+                Connect Gmail
+              </a>
+            )}
+            {gmailConnected && (
+              <button
+                className="rounded-full border border-[var(--line)] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-[var(--muted)]"
+                onClick={handleGmailSync}
+                disabled={syncing}
+              >
+                {syncing ? "Syncing..." : "Sync Gmail"}
+              </button>
+            )}
+            {gmailEmail && (
+              <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                Connected: {gmailEmail}
+              </span>
+            )}
           </div>
           <form
             onSubmit={handleSubmit}

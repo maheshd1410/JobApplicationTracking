@@ -31,6 +31,9 @@ Create a `.env.local` file with:
 ```bash
 SUPABASE_URL=your-supabase-url
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=https://your-domain/api/google/callback
 ```
 
 Run the development server:
@@ -102,6 +105,20 @@ create table if not exists audit_log (
   created_at timestamptz not null default now()
 );
 
+create table if not exists integrations (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  email text,
+  access_token text,
+  refresh_token text,
+  expiry timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists idx_integrations_provider_email
+  on integrations (provider, email);
+
 create index if not exists idx_applications_date_applied
   on applications (date_applied);
 create index if not exists idx_applications_status
@@ -144,6 +161,24 @@ alter table opportunities
 
 alter table inventory_items
   add column if not exists decision text default 'Pending';
+```
+
+For Gmail integration, run:
+
+```sql
+create table if not exists integrations (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  email text,
+  access_token text,
+  refresh_token text,
+  expiry timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create unique index if not exists idx_integrations_provider_email
+  on integrations (provider, email);
 ```
 
 ## Deployment (Vercel)
