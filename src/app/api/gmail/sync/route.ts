@@ -3,7 +3,10 @@ import { google } from "googleapis";
 import { getOAuthClient } from "@/lib/google";
 import { supabase } from "@/lib/supabase";
 
-function getHeader(headers: { name?: string; value?: string }[], key: string) {
+function getHeader(
+  headers: { name?: string | null; value?: string | null }[],
+  key: string
+) {
   return headers.find((h) => h.name?.toLowerCase() === key.toLowerCase())?.value;
 }
 
