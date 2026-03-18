@@ -105,6 +105,18 @@ create table if not exists audit_log (
   created_at timestamptz not null default now()
 );
 
+create table if not exists profile_performance (
+  id uuid primary key default gen_random_uuid(),
+  entry_date date not null,
+  impressions integer,
+  searches integer,
+  recruiter_actions integer,
+  notes text,
+  screenshot_path text,
+  screenshot_url text,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists integrations (
   id uuid primary key default gen_random_uuid(),
   provider text not null,
@@ -141,6 +153,8 @@ create index if not exists idx_inventory_items_inventory
   on inventory_items (inventory_id);
 create index if not exists idx_inventory_items_opportunity
   on inventory_items (opportunity_id);
+create index if not exists idx_profile_performance_date
+  on profile_performance (entry_date);
 ```
 
 If you already created the table earlier, run:
@@ -180,6 +194,30 @@ create table if not exists integrations (
 create unique index if not exists idx_integrations_provider_email
   on integrations (provider, email);
 ```
+
+For profile performance tracking, run:
+
+```sql
+create table if not exists profile_performance (
+  id uuid primary key default gen_random_uuid(),
+  entry_date date not null,
+  impressions integer,
+  searches integer,
+  recruiter_actions integer,
+  notes text,
+  screenshot_path text,
+  screenshot_url text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_profile_performance_date
+  on profile_performance (entry_date);
+```
+
+## Supabase Storage Setup
+
+Create a public bucket named `naukri-screenshots` in Supabase Storage.
+We store uploaded screenshots there and save the public URL in the database.
 
 ## Deployment (Vercel)
 

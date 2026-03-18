@@ -34,6 +34,7 @@ export default function RootLayout({
               <a href="/">Dashboard</a>
               <a href="/opportunities">Opportunities</a>
               <a href="/inventory">Daily Inventory</a>
+              <a href="/performance">Performance</a>
             </div>
           </nav>
         </header>
