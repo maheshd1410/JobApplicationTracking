@@ -10,7 +10,7 @@ function getHeader(
   return headers.find((h) => h.name?.toLowerCase() === key.toLowerCase())?.value;
 }
 
-function parseSenderCompany(fromHeader: string | undefined) {
+function parseSenderCompany(fromHeader: string | null | undefined) {
   if (!fromHeader) return "Unknown";
   const match = fromHeader.match(/"?([^"<]+)"?\s*</);
   if (match && match[1]) return match[1].trim();
