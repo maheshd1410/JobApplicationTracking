@@ -91,6 +91,18 @@ create table if not exists opportunity_content (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists opportunity_documents (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  name text not null,
+  file_path text not null,
+  file_url text,
+  mime_type text,
+  size_bytes integer,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists daily_inventory (
   id uuid primary key default gen_random_uuid(),
   inventory_date date not null unique,
@@ -161,6 +173,8 @@ create index if not exists idx_opportunity_content_type
   on opportunity_content (type);
 create index if not exists idx_opportunity_content_opportunity
   on opportunity_content (opportunity_id);
+create index if not exists idx_opportunity_documents_opportunity
+  on opportunity_documents (opportunity_id);
 create index if not exists idx_inventory_date
   on daily_inventory (inventory_date);
 create index if not exists idx_inventory_items_inventory
@@ -232,6 +246,9 @@ create index if not exists idx_profile_performance_date
 
 Create a public bucket named `naukri-screenshots` in Supabase Storage.
 We store uploaded screenshots there and save the public URL in the database.
+
+Create a public bucket named `opportunity-documents` in Supabase Storage.
+We store shared documents per opportunity there and save the public URL.
 
 ## Deployment (Vercel)
 
