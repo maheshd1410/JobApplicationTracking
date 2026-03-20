@@ -81,6 +81,50 @@ function formatWeekLabel(weekStart: string) {
   });
 }
 
+function toDateKey(date: Date) {
+  return toDateInput(date);
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0);
+}
+
+function addMonths(date: Date, amount: number) {
+  return new Date(date.getFullYear(), date.getMonth() + amount, 1);
+}
+
+function startOfWeek(date: Date) {
+  const day = date.getDay();
+  const start = new Date(date);
+  start.setDate(date.getDate() - day);
+  return start;
+}
+
+function statusColor(status: string) {
+  switch (status) {
+    case "Applied":
+      return "bg-[var(--accent)]";
+    case "In Queue":
+      return "bg-[var(--accent-2)]";
+    case "Interview":
+      return "bg-emerald-500";
+    case "Offer":
+      return "bg-sky-500";
+    case "Rejected":
+      return "bg-rose-500";
+    case "Withdrawn":
+      return "bg-orange-500";
+    case "No Response":
+      return "bg-amber-500";
+    default:
+      return "bg-slate-400";
+  }
+}
+
 export default function Home() {
   const today = useMemo(() => toDateInput(new Date()), []);
 
@@ -107,6 +151,10 @@ export default function Home() {
   const [duplicateReason, setDuplicateReason] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
   const [form, setForm] = useState<FormState>({
     company: "",
     role_title: "",
@@ -435,6 +483,34 @@ export default function Home() {
   const pageStart = (currentPage - 1) * pageSize;
   const pageEnd = pageStart + pageSize;
   const pagedApplications = applications.slice(pageStart, pageEnd);
+
+  const calendarDays = useMemo(() => {
+    const start = startOfWeek(startOfMonth(calendarMonth));
+    const end = endOfMonth(calendarMonth);
+    const days: Date[] = [];
+    const cursor = new Date(start);
+    while (cursor <= end || cursor.getDay() !== 0) {
+      days.push(new Date(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return days;
+  }, [calendarMonth]);
+
+  const calendarCounts = useMemo(() => {
+    const counts: Record<string, Record<string, number>> = {};
+    applications.forEach((app) => {
+      const status = app.status ?? "Unknown";
+      const isAppliedLike = status === "Applied" || status === "In Queue";
+      const baseDate = isAppliedLike
+        ? app.date_applied
+        : (app.updated_at as string | null | undefined) ?? app.date_applied;
+      if (!baseDate) return;
+      const key = baseDate.slice(0, 10);
+      if (!counts[key]) counts[key] = {};
+      counts[key][status] = (counts[key][status] ?? 0) + 1;
+    });
+    return counts;
+  }, [applications]);
 
   return (
     <div className="min-h-screen px-6 py-12 text-[15px] md:px-10">
@@ -867,6 +943,95 @@ export default function Home() {
               {loading && (
                 <p className="mt-4 text-sm text-[var(--muted)]">Loading...</p>
               )}
+            </div>
+
+            <div className="mt-8 rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xl font-semibold">Application Calendar</h3>
+                  <p className="mt-1 text-sm text-[var(--muted)]">
+                    Applied uses date applied. Other statuses use last updated date.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                  <button
+                    className="rounded-full border border-[var(--line)] px-3 py-1"
+                    onClick={() => setCalendarMonth((prev) => addMonths(prev, -1))}
+                  >
+                    Prev
+                  </button>
+                  <span>
+                    {calendarMonth.toLocaleDateString(undefined, {
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <button
+                    className="rounded-full border border-[var(--line)] px-3 py-1"
+                    onClick={() => setCalendarMonth((prev) => addMonths(prev, 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-7 gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                  <div key={day} className="px-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 grid grid-cols-7 gap-2">
+                {calendarDays.map((day) => {
+                  const key = toDateKey(day);
+                  const counts = calendarCounts[key] ?? {};
+                  const isCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+                  const total = Object.values(counts).reduce((sum, value) => sum + value, 0);
+                  const topStatuses = Object.entries(counts)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3);
+
+                  return (
+                    <div
+                      key={key}
+                      className={`min-h-[88px] rounded-2xl border border-[var(--line)] p-2 text-xs ${
+                        isCurrentMonth ? "bg-white" : "bg-white/50 text-[var(--muted)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-semibold">{day.getDate()}</span>
+                        {total > 0 && (
+                          <span className="text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                            {total}
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-col gap-1">
+                        {topStatuses.map(([status, count]) => (
+                          <div key={status} className="flex items-center gap-2">
+                            <span
+                              className={`h-2 w-2 rounded-full ${statusColor(status)}`}
+                            />
+                            <span className="text-[10px] uppercase tracking-[0.2em]">
+                              {status}
+                            </span>
+                            <span className="ml-auto text-[10px] text-[var(--muted)]">
+                              {count}
+                            </span>
+                          </div>
+                        ))}
+                        {!topStatuses.length && (
+                          <span className="text-[10px] text-[var(--muted)]">
+                            No activity
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
