@@ -39,6 +39,11 @@ export default function RootLayout({
           </nav>
         </header>
         {children}
+        <footer className="px-6 pb-8 md:px-10">
+          <div className="mx-auto max-w-6xl text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
+            Build {process.env.NEXT_PUBLIC_APP_VERSION?.slice(0, 7) ?? "local"}
+          </div>
+        </footer>
       </body>
     </html>
   );
