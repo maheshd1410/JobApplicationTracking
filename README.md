@@ -224,6 +224,32 @@ alter table opportunity_documents
 
 create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
+
+-- One-time backfill for existing opportunity_documents rows
+with ranked as (
+  select
+    id,
+    opportunity_id,
+    coalesce(tag, 'Other') as tag,
+    created_at,
+    row_number() over (
+      partition by opportunity_id, coalesce(tag, 'Other')
+      order by created_at asc, id asc
+    ) as version_rank,
+    row_number() over (
+      partition by opportunity_id, coalesce(tag, 'Other')
+      order by created_at desc, id desc
+    ) as latest_rank
+  from opportunity_documents
+)
+update opportunity_documents d
+set
+  tag = ranked.tag,
+  version = ranked.version_rank,
+  is_latest = (ranked.latest_rank = 1),
+  updated_at = now()
+from ranked
+where d.id = ranked.id;
 ```
 
 For Gmail integration, run:
