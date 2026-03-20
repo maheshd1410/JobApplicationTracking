@@ -43,7 +43,8 @@ export async function GET(request: Request) {
   if (followUpDue === "1" && followUpDate) {
     query = query
       .not("follow_up_date", "is", null)
-      .lte("follow_up_date", followUpDate);
+      .lte("follow_up_date", followUpDate)
+      .not("status", "in", "(Rejected,Withdrawn,Offer)");
   }
 
   if (tagsParam) {
