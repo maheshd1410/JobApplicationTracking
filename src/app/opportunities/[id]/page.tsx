@@ -322,3 +322,4 @@ export default function OpportunityDetailPage({ params }: Props) {
     </div>
   );
 }
+
