@@ -416,6 +416,7 @@ export default function OpportunitiesPage() {
                 <tr>
                   <th className="px-3">Company</th>
                   <th className="px-3">Role</th>
+                  <th className="px-3">Workspace</th>
                   <th className="px-3">Status</th>
                   <th className="px-3">Source</th>
                   <th className="px-3">Score</th>
@@ -430,6 +431,14 @@ export default function OpportunitiesPage() {
                   >
                     <td className="px-3 py-3 font-medium">{item.company}</td>
                     <td className="px-3 py-3">{item.title}</td>
+                    <td className="px-3 py-3">
+                      <a
+                        className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                        href={`/opportunities/${item.id}`}
+                      >
+                        Open
+                      </a>
+                    </td>
                     <td className="px-3 py-3">
                       <select
                         className="rounded-full border border-[var(--line)] bg-transparent px-3 py-1 text-xs"

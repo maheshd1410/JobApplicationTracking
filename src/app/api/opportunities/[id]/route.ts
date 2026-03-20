@@ -96,3 +96,35 @@ export async function PATCH(
 
   return NextResponse.json({ data });
 }
+
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  const params = await context.params;
+  const url = new URL(request.url);
+  const fallbackId = url.pathname.split("/").pop();
+  const id = params?.id ?? fallbackId ?? "";
+
+  if (!id) {
+    return NextResponse.json(
+      { error: "Missing opportunity id." },
+      { status: 400 }
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("opportunities")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error || !data) {
+    return NextResponse.json(
+      { error: error?.message ?? "Opportunity not found." },
+      { status: 404 }
+    );
+  }
+
+  return NextResponse.json({ data });
+}
