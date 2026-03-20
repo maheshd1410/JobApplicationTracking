@@ -11,6 +11,8 @@ const tabs = [
   { key: "DOCS", label: "Shared Documents" },
 ] as const;
 
+const docTags = ["CV", "Cover Letter", "Salary Slip", "Portfolio", "Other"] as const;
+
 type TabKey = (typeof tabs)[number]["key"];
 
 type Opportunity = {
@@ -35,7 +37,13 @@ type ContentItem = {
 type DocumentItem = {
   id: string;
   name: string;
+  tag: string | null;
+  note: string | null;
+  version: number | null;
+  is_latest: boolean | null;
   file_url: string | null;
+  mime_type: string | null;
+  size_bytes: number | null;
   created_at: string;
   updated_at: string;
 };
@@ -60,7 +68,10 @@ export default function OpportunityDetailPage() {
   const [form, setForm] = useState({ title: "", content: "" });
   const [docFile, setDocFile] = useState<File | null>(null);
   const [docName, setDocName] = useState("");
+  const [docTag, setDocTag] = useState<(typeof docTags)[number]>("CV");
+  const [docNote, setDocNote] = useState("");
   const [docEditing, setDocEditing] = useState<DocumentItem | null>(null);
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
 
   const loadOpportunity = async () => {
     if (!opportunityId) return;
@@ -122,7 +133,10 @@ export default function OpportunityDetailPage() {
     setForm({ title: "", content: "" });
     setDocEditing(null);
     setDocName("");
+    setDocTag("CV");
+    setDocNote("");
     setDocFile(null);
+    setPreviewDocId(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -230,12 +244,20 @@ export default function OpportunityDetailPage() {
       setError("Select a file to upload.");
       return;
     }
+    if (!docTag) {
+      setError("Select a document tag.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       const data = new FormData();
       data.append("file", docFile);
       data.append("name", docName.trim() ? docName.trim() : docFile.name);
+      data.append("tag", docTag);
+      if (docNote.trim()) {
+        data.append("note", docNote.trim());
+      }
       const res = await fetch(`/api/opportunities/${opportunityId}/documents`, {
         method: "POST",
         body: data,
@@ -247,6 +269,8 @@ export default function OpportunityDetailPage() {
       setDocuments((prev) => [payload.data, ...prev]);
       setDocFile(null);
       setDocName("");
+      setDocTag("CV");
+      setDocNote("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
@@ -268,7 +292,11 @@ export default function OpportunityDetailPage() {
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: docName }),
+          body: JSON.stringify({
+            name: docName,
+            tag: docTag,
+            note: docNote.trim() ? docNote.trim() : null,
+          }),
         }
       );
       const payload = await res.json();
@@ -280,6 +308,8 @@ export default function OpportunityDetailPage() {
       );
       setDocEditing(null);
       setDocName("");
+      setDocTag("CV");
+      setDocNote("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
     } finally {
@@ -377,6 +407,25 @@ export default function OpportunityDetailPage() {
                       value={docName}
                       onChange={(e) => setDocName(e.target.value)}
                     />
+                    <select
+                      className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      value={docTag}
+                      onChange={(e) =>
+                        setDocTag(e.target.value as (typeof docTags)[number])
+                      }
+                    >
+                      {docTags.map((tag) => (
+                        <option key={tag} value={tag}>
+                          {tag}
+                        </option>
+                      ))}
+                    </select>
+                    <textarea
+                      className="min-h-[120px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      placeholder="Optional note (what was shared, context, etc.)"
+                      value={docNote}
+                      onChange={(e) => setDocNote(e.target.value)}
+                    />
                     {!docEditing && (
                       <input
                         type="file"
@@ -400,6 +449,8 @@ export default function OpportunityDetailPage() {
                           onClick={() => {
                             setDocEditing(null);
                             setDocName("");
+                            setDocTag("CV");
+                            setDocNote("");
                           }}
                         >
                           Cancel
@@ -418,45 +469,103 @@ export default function OpportunityDetailPage() {
                       No documents uploaded yet.
                     </p>
                   )}
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <h3 className="text-sm font-semibold">{doc.name}</h3>
-                          <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                            Updated {formatDate(doc.updated_at)}
-                          </p>
-                          {doc.file_url && (
-                            <a
-                              className="mt-2 inline-block text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
-                              href={doc.file_url}
-                              target="_blank"
-                              rel="noreferrer"
+                  {Object.entries(
+                    documents.reduce<Record<string, DocumentItem[]>>(
+                      (acc, doc) => {
+                        const key = doc.tag || "Other";
+                        if (!acc[key]) acc[key] = [];
+                        acc[key].push(doc);
+                        return acc;
+                      },
+                      {}
+                    )
+                  ).map(([tag, docs]) => (
+                    <div key={tag} className="rounded-2xl border border-[var(--line)] p-4">
+                      <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--accent-2)]">
+                        {tag}
+                      </h3>
+                      <div className="mt-3 flex flex-col gap-3">
+                        {docs.map((doc) => {
+                          const isPdf =
+                            doc.mime_type?.includes("pdf") ||
+                            (doc.file_url?.toLowerCase().endsWith(".pdf") ?? false);
+                          const showPreview = previewDocId === doc.id && isPdf;
+                          return (
+                            <div
+                              key={doc.id}
+                              className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4"
                             >
-                              Download
-                            </a>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-2">
-                          <button
-                            className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
-                            onClick={() => {
-                              setDocEditing(doc);
-                              setDocName(doc.name);
-                            }}
-                          >
-                            Rename
-                          </button>
-                          <button
-                            className="text-xs uppercase tracking-[0.2em] text-red-500"
-                            onClick={() => handleDocumentDelete(doc)}
-                          >
-                            Delete
-                          </button>
-                        </div>
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <h4 className="text-sm font-semibold">{doc.name}</h4>
+                                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                                    Version {doc.version ?? 1} {doc.is_latest ? "(Latest)" : ""}
+                                  </p>
+                                  <p className="mt-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                                    Updated {formatDate(doc.updated_at)}
+                                  </p>
+                                  {doc.note && (
+                                    <p className="mt-2 text-sm text-[var(--muted)] whitespace-pre-wrap">
+                                      {doc.note}
+                                    </p>
+                                  )}
+                                  <div className="mt-3 flex flex-wrap gap-3">
+                                    {doc.file_url && (
+                                      <a
+                                        className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                                        href={doc.file_url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                      >
+                                        Download
+                                      </a>
+                                    )}
+                                    {isPdf && doc.file_url && (
+                                      <button
+                                        className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
+                                        onClick={() =>
+                                          setPreviewDocId(showPreview ? null : doc.id)
+                                        }
+                                      >
+                                        {showPreview ? "Hide Preview" : "Preview"}
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  <button
+                                    className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                                    onClick={() => {
+                                      setDocEditing(doc);
+                                      setDocName(doc.name);
+                                      setDocTag(
+                                        (doc.tag as (typeof docTags)[number]) || "Other"
+                                      );
+                                      setDocNote(doc.note ?? "");
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    className="text-xs uppercase tracking-[0.2em] text-red-500"
+                                    onClick={() => handleDocumentDelete(doc)}
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
+                              </div>
+                              {showPreview && doc.file_url && (
+                                <div className="mt-4 overflow-hidden rounded-xl border border-[var(--line)]">
+                                  <iframe
+                                    title={`Preview ${doc.name}`}
+                                    src={doc.file_url}
+                                    className="h-[480px] w-full"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

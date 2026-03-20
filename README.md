@@ -95,6 +95,10 @@ create table if not exists opportunity_documents (
   id uuid primary key default gen_random_uuid(),
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   name text not null,
+  tag text not null default 'Other',
+  note text,
+  version integer not null default 1,
+  is_latest boolean not null default true,
   file_path text not null,
   file_url text,
   mime_type text,
@@ -175,6 +179,8 @@ create index if not exists idx_opportunity_content_opportunity
   on opportunity_content (opportunity_id);
 create index if not exists idx_opportunity_documents_opportunity
   on opportunity_documents (opportunity_id);
+create index if not exists idx_opportunity_documents_tag_latest
+  on opportunity_documents (opportunity_id, tag, is_latest);
 create index if not exists idx_inventory_date
   on daily_inventory (inventory_date);
 create index if not exists idx_inventory_items_inventory
@@ -203,6 +209,21 @@ alter table opportunities
 
 alter table inventory_items
   add column if not exists decision text default 'Pending';
+
+alter table opportunity_documents
+  add column if not exists tag text default 'Other';
+
+alter table opportunity_documents
+  add column if not exists note text;
+
+alter table opportunity_documents
+  add column if not exists version integer default 1;
+
+alter table opportunity_documents
+  add column if not exists is_latest boolean default true;
+
+create index if not exists idx_opportunity_documents_tag_latest
+  on opportunity_documents (opportunity_id, tag, is_latest);
 ```
 
 For Gmail integration, run:
