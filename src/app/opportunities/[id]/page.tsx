@@ -31,15 +31,15 @@ type ContentItem = {
   updated_at: string;
 };
 
-type Props = {
-  params: { id: string };
-};
-
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString();
 }
 
-export default function OpportunityDetailPage({ params }: Props) {
+export default function OpportunityDetailPage() {
+  const opportunityId =
+    typeof window !== "undefined"
+      ? window.location.pathname.split("/").pop() ?? ""
+      : "";
   const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("JD");
   const [items, setItems] = useState<ContentItem[]>([]);
@@ -49,9 +49,8 @@ export default function OpportunityDetailPage({ params }: Props) {
   const [editing, setEditing] = useState<ContentItem | null>(null);
   const [form, setForm] = useState({ title: "", content: "" });
 
-  const opportunityId = params.id;
-
   const loadOpportunity = async () => {
+    if (!opportunityId) return;
     try {
       const res = await fetch(`/api/opportunities/${opportunityId}`, {
         cache: "no-store",
@@ -67,6 +66,7 @@ export default function OpportunityDetailPage({ params }: Props) {
   };
 
   const loadContent = async (type: TabKey) => {
+    if (!opportunityId) return;
     setLoading(true);
     setError(null);
     try {
@@ -99,6 +99,10 @@ export default function OpportunityDetailPage({ params }: Props) {
   }, [activeTab]);
 
   const handleSave = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
     if (!form.title.trim() || !form.content.trim()) {
       setError("Title and content are required.");
       return;
@@ -158,6 +162,10 @@ export default function OpportunityDetailPage({ params }: Props) {
   };
 
   const handleDelete = async (item: ContentItem) => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
