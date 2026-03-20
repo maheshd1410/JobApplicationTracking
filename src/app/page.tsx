@@ -105,6 +105,8 @@ export default function Home() {
   const [selected, setSelected] = useState<Application | null>(null);
   const [duplicate, setDuplicate] = useState<Application | null>(null);
   const [duplicateReason, setDuplicateReason] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
   const [form, setForm] = useState<FormState>({
     company: "",
     role_title: "",
@@ -206,6 +208,25 @@ export default function Home() {
       ignore = true;
     };
   }, [filters, today]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [
+    filters.status,
+    filters.source,
+    filters.q,
+    filters.tags,
+    filters.dateFrom,
+    filters.dateTo,
+    filters.followUpDue,
+  ]);
+
+  useEffect(() => {
+    const totalPages = Math.max(Math.ceil(applications.length / pageSize), 1);
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [applications.length, currentPage]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -409,6 +430,11 @@ export default function Home() {
       followUpDue: false,
     });
   };
+
+  const totalPages = Math.max(Math.ceil(applications.length / pageSize), 1);
+  const pageStart = (currentPage - 1) * pageSize;
+  const pageEnd = pageStart + pageSize;
+  const pagedApplications = applications.slice(pageStart, pageEnd);
 
   return (
     <div className="min-h-screen px-6 py-12 text-[15px] md:px-10">
@@ -753,7 +779,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {applications.map((item) => (
+                  {pagedApplications.map((item) => (
                     <tr
                       key={item.id}
                       className="cursor-pointer rounded-2xl border border-[var(--line)] bg-[var(--card)] shadow-sm hover:shadow-md"
@@ -809,6 +835,34 @@ export default function Home() {
                   ))}
                 </tbody>
               </table>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                <span>
+                  Showing {applications.length ? pageStart + 1 : 0}-
+                  {Math.min(pageEnd, applications.length)} of {applications.length}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="rounded-full border border-[var(--line)] px-3 py-1 text-[10px] uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                  >
+                    Prev
+                  </button>
+                  <span>
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    className="rounded-full border border-[var(--line)] px-3 py-1 text-[10px] uppercase tracking-[0.18em] disabled:cursor-not-allowed disabled:opacity-50"
+                    onClick={() =>
+                      setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+                    }
+                    disabled={currentPage === totalPages}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
 
               {loading && (
                 <p className="mt-4 text-sm text-[var(--muted)]">Loading...</p>
