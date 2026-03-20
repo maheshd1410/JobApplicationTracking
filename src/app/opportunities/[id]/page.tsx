@@ -189,12 +189,12 @@ export default function OpportunityDetailPage({ params }: Props) {
             Opportunity Workspace
           </p>
           <h1 className="mt-2 text-3xl font-semibold">
-            {opportunity ? `${opportunity.company} — ${opportunity.title}` : "Loading..."}
+            {opportunity ? `${opportunity.company} â€” ${opportunity.title}` : "Loading..."}
           </h1>
           <div className="mt-2 flex flex-wrap gap-3 text-sm text-[var(--muted)]">
-            <span>Status: {opportunity?.status ?? "—"}</span>
-            <span>Source: {opportunity?.source ?? "—"}</span>
-            <span>Location: {opportunity?.location ?? "—"}</span>
+            <span>Status: {opportunity?.status ?? "â€”"}</span>
+            <span>Source: {opportunity?.source ?? "â€”"}</span>
+            <span>Location: {opportunity?.location ?? "â€”"}</span>
             {opportunity?.url && (
               <a
                 className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
