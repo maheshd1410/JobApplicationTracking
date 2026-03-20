@@ -125,6 +125,27 @@ function statusColor(status: string) {
   }
 }
 
+function statusAbbrev(status: string) {
+  switch (status) {
+    case "Applied":
+      return "A";
+    case "In Queue":
+      return "Q";
+    case "Interview":
+      return "I";
+    case "Offer":
+      return "O";
+    case "Rejected":
+      return "R";
+    case "Withdrawn":
+      return "W";
+    case "No Response":
+      return "N";
+    default:
+      return status.slice(0, 1).toUpperCase();
+  }
+}
+
 export default function Home() {
   const today = useMemo(() => toDateInput(new Date()), []);
 
@@ -975,6 +996,17 @@ export default function Home() {
                 </div>
               </div>
 
+              <div className="mt-4 flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
+                {["Applied", "In Queue", "Interview", "Offer", "Rejected", "Withdrawn", "No Response"].map(
+                  (status) => (
+                    <span key={status} className="flex items-center gap-2">
+                      <span className={`h-2 w-2 rounded-full ${statusColor(status)}`} />
+                      {statusAbbrev(status)} = {status}
+                    </span>
+                  )
+                )}
+              </div>
+
               <div className="mt-4 grid grid-cols-7 gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                   <div key={day} className="px-2">
@@ -1017,8 +1049,8 @@ export default function Home() {
                             <span
                               className={`h-2 w-2 rounded-full ${statusColor(status)}`}
                             />
-                            <span className="min-w-0 truncate text-[9px] uppercase tracking-[0.2em]">
-                              {status}
+                            <span className="text-[9px] font-semibold uppercase tracking-[0.2em]">
+                              {statusAbbrev(status)}
                             </span>
                             <span className="ml-auto text-[9px] text-[var(--muted)]">
                               {count}
