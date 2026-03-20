@@ -996,7 +996,7 @@ export default function Home() {
                   return (
                     <div
                       key={key}
-                      className={`min-h-[88px] rounded-2xl border border-[var(--line)] p-2 text-xs ${
+                      className={`min-h-[88px] rounded-2xl border border-[var(--line)] p-2 text-xs overflow-hidden ${
                         isCurrentMonth ? "bg-white" : "bg-white/50 text-[var(--muted)]"
                       }`}
                     >
@@ -1010,14 +1010,17 @@ export default function Home() {
                       </div>
                       <div className="mt-2 flex flex-col gap-1">
                         {topStatuses.map(([status, count]) => (
-                          <div key={status} className="flex items-center gap-2">
+                          <div
+                            key={status}
+                            className="flex min-w-0 items-center gap-2"
+                          >
                             <span
                               className={`h-2 w-2 rounded-full ${statusColor(status)}`}
                             />
-                            <span className="text-[10px] uppercase tracking-[0.2em]">
+                            <span className="min-w-0 truncate text-[9px] uppercase tracking-[0.2em]">
                               {status}
                             </span>
-                            <span className="ml-auto text-[10px] text-[var(--muted)]">
+                            <span className="ml-auto text-[9px] text-[var(--muted)]">
                               {count}
                             </span>
                           </div>
