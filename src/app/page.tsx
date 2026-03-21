@@ -15,19 +15,6 @@ type Filters = {
   followUpDue: boolean;
 };
 
-type FormState = {
-  company: string;
-  role_title: string;
-  location: string;
-  job_link: string;
-  source: string;
-  date_applied: string;
-  status: string;
-  follow_up_date: string;
-  tags: string;
-  notes: string;
-};
-
 type WeeklyPoint = {
   weekStart: string;
   count: number;
@@ -58,12 +45,6 @@ function formatLong(dateStr: string | null) {
     month: "short",
     day: "numeric",
   });
-}
-
-function addDays(dateStr: string, days: number) {
-  const date = new Date(`${dateStr}T00:00:00`);
-  date.setDate(date.getDate() + days);
-  return toDateInput(date);
 }
 
 function parseTags(input: string) {
@@ -168,31 +149,12 @@ export default function Home() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Application | null>(null);
-  const [duplicate, setDuplicate] = useState<Application | null>(null);
-  const [duplicateReason, setDuplicateReason] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
   });
-  const [form, setForm] = useState<FormState>({
-    company: "",
-    role_title: "",
-    location: "",
-    job_link: "",
-    source: "",
-    date_applied: today,
-    status: "In Queue",
-    follow_up_date: "",
-    tags: "",
-    notes: "",
-  });
-
-  const autoFollowUp = useMemo(() => {
-    if (!form.date_applied) return "";
-    return addDays(form.date_applied, 7);
-  }, [form.date_applied]);
 
   const sourceOptions = useMemo(() => {
     const values = new Set<string>();
@@ -296,102 +258,6 @@ export default function Home() {
       setCurrentPage(totalPages);
     }
   }, [applications.length, currentPage]);
-
-  const handleSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    setDuplicate(null);
-    setDuplicateReason(null);
-
-    try {
-      const payload = {
-        ...form,
-        tags: parseTags(form.tags),
-        follow_up_date: form.follow_up_date || undefined,
-      };
-
-      const res = await fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const payloadResponse = await res.json();
-
-      if (res.status === 409) {
-        setDuplicate(payloadResponse.existing ?? null);
-        setDuplicateReason(
-          payloadResponse.matchType === "partial"
-            ? "Partial match on company and role."
-            : "Case-insensitive exact match on company and role."
-        );
-        throw new Error(payloadResponse.error ?? "Possible duplicate found.");
-      }
-
-      if (!res.ok) {
-        throw new Error(payloadResponse.error ?? "Failed to create application.");
-      }
-
-      setForm({
-        company: "",
-        role_title: "",
-        location: "",
-        job_link: "",
-        source: "",
-        date_applied: today,
-        status: "In Queue",
-        follow_up_date: "",
-        tags: "",
-        notes: "",
-      });
-
-      setFilters((prev) => ({ ...prev }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleForceCreate = async () => {
-    setSaving(true);
-    setError(null);
-
-    try {
-      const res = await fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, tags: parseTags(form.tags), force: true }),
-      });
-
-      const payloadResponse = await res.json();
-
-      if (!res.ok) {
-        throw new Error(payloadResponse.error ?? "Failed to create application.");
-      }
-
-      setDuplicate(null);
-      setForm({
-        company: "",
-        role_title: "",
-        location: "",
-        job_link: "",
-        source: "",
-        date_applied: today,
-        status: "In Queue",
-        follow_up_date: "",
-        tags: "",
-        notes: "",
-      });
-
-      setFilters((prev) => ({ ...prev }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleUpdate = async () => {
     if (!selected) return;
@@ -563,171 +429,17 @@ export default function Home() {
             </div>
           </div>
 
-          <form
-            onSubmit={handleSubmit}
-            onKeyDown={(event) => {
-              if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
-                event.preventDefault();
-                handleSubmit(event);
-              }
-            }}
-            className="grid gap-4 rounded-2xl border border-[var(--line)] bg-white p-6 md:grid-cols-2"
-          >
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Company
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.company}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, company: e.target.value }))
-                }
-                placeholder="Amazon, Atlassian"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Role Title
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.role_title}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, role_title: e.target.value }))
-                }
-                placeholder="Associate Director, Engineering"
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Location
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.location}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, location: e.target.value }))
-                }
-                placeholder="Remote, Hyderabad"
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Job Link
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.job_link}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, job_link: e.target.value }))
-                }
-                placeholder="https://company.com/jobs"
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Source
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.source}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, source: e.target.value }))
-                }
-                placeholder="LinkedIn, Referral"
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Date Applied
-              </label>
-              <input
-                type="date"
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.date_applied}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, date_applied: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Status
-              </label>
-              <select
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.status}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, status: e.target.value }))
-                }
-              >
-                {statusOptions.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Follow-up Date
-              </label>
-              <input
-                type="date"
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.follow_up_date}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, follow_up_date: e.target.value }))
-                }
-                placeholder={autoFollowUp}
-              />
-              <p className="mt-2 text-xs text-[var(--muted)]">
-                Auto suggestion: {autoFollowUp}
-              </p>
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Notes
-              </label>
-              <textarea
-                className="mt-2 min-h-[90px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.notes}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, notes: e.target.value }))
-                }
-                placeholder="Hiring manager, referral contact, interview details"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <label className="text-xs uppercase tracking-[0.25em] text-[var(--muted)]">
-                Tags
-              </label>
-              <input
-                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.tags}
-                onChange={(e) =>
-                  setForm((prev) => ({ ...prev, tags: e.target.value }))
-                }
-                placeholder="Referral, Urgent, Target"
-              />
-            </div>
-            <div className="md:col-span-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div className="text-xs text-[var(--muted)]">
-                Required: Company, Role Title, Date Applied, Status
-              </div>
-              <button
-                className="rounded-full bg-[var(--accent)] px-6 py-2 text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Add Application"}
-              </button>
-            </div>
-          </form>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--line)] bg-white/80 px-6 py-4 text-sm text-[var(--muted)]">
+            <span>
+              Data entry now lives in the Opportunities page to keep this dashboard focused.
+            </span>
+            <a
+              className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+              href="/opportunities"
+            >
+              Go to Opportunities
+            </a>
+          </div>
         </header>
 
         <section className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]">
@@ -838,30 +550,6 @@ export default function Home() {
                 {error}
               </div>
             )}
-            {duplicate && (
-              <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                A similar application already exists: {duplicate.company} —{" "}
-                {duplicate.role_title}.{" "}
-                {duplicateReason ? `(${duplicateReason})` : ""} You can still save
-                this one if you want.
-                <div className="mt-3 flex flex-wrap gap-3">
-                  <button
-                    className="rounded-full bg-[var(--accent-2)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
-                    onClick={handleForceCreate}
-                    disabled={saving}
-                  >
-                    Save Anyway
-                  </button>
-                  <button
-                    className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
-                    onClick={() => setDuplicate(null)}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
             <div className="mt-6 overflow-x-auto">
               <table className="w-full border-separate border-spacing-y-3 text-sm">
                 <thead className="text-left text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
