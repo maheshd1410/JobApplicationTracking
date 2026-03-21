@@ -75,7 +75,8 @@ create table if not exists opportunities (
   url text,
   source text,
   status text not null default 'New',
-  match_score numeric,
+  match_score_actual numeric,
+  match_score_resume numeric,
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -205,7 +206,16 @@ If you already created Phase 1 tables, use these safe updates when needed:
 
 ```sql
 alter table opportunities
-  add column if not exists match_score numeric;
+  add column if not exists match_score_actual numeric;
+
+alter table opportunities
+  add column if not exists match_score_resume numeric;
+
+-- Optional: migrate legacy match_score into match_score_actual
+update opportunities
+set match_score_actual = match_score
+where match_score_actual is null
+  and match_score is not null;
 
 alter table inventory_items
   add column if not exists decision text default 'Pending';

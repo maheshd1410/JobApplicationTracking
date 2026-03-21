@@ -54,8 +54,11 @@ export async function PATCH(
     }
     updates.status = status;
   }
-  if (body.match_score !== undefined) {
-    updates.match_score = body.match_score;
+  if (body.match_score_actual !== undefined) {
+    updates.match_score_actual = body.match_score_actual;
+  }
+  if (body.match_score_resume !== undefined) {
+    updates.match_score_resume = body.match_score_resume;
   }
   if (body.notes !== undefined) {
     updates.notes = body.notes ? String(body.notes) : null;

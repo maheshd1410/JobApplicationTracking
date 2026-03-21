@@ -12,7 +12,8 @@ type Opportunity = {
   url: string | null;
   source: string | null;
   status: OpportunityStatus;
-  match_score: number | null;
+  match_score_actual: number | null;
+  match_score_resume: number | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -39,7 +40,8 @@ export default function OpportunitiesPage() {
     url: "",
     source: "",
     status: "New",
-    match_score: "",
+    match_score_actual: "",
+    match_score_resume: "",
     notes: "",
   });
 
@@ -131,7 +133,12 @@ export default function OpportunitiesPage() {
     try {
       const payload = {
         ...form,
-        match_score: form.match_score ? Number(form.match_score) : null,
+        match_score_actual: form.match_score_actual
+          ? Number(form.match_score_actual)
+          : null,
+        match_score_resume: form.match_score_resume
+          ? Number(form.match_score_resume)
+          : null,
       };
       const res = await fetch(
         editing ? `/api/opportunities/${editing.id}` : "/api/opportunities",
@@ -152,7 +159,8 @@ export default function OpportunitiesPage() {
         url: "",
         source: "",
         status: "New",
-        match_score: "",
+        match_score_actual: "",
+        match_score_resume: "",
         notes: "",
       });
       setEditing(null);
@@ -197,7 +205,12 @@ export default function OpportunitiesPage() {
       url: item.url ?? "",
       source: item.source ?? "",
       status: item.status ?? "New",
-      match_score: item.match_score ? String(item.match_score) : "",
+      match_score_actual: item.match_score_actual
+        ? String(item.match_score_actual)
+        : "",
+      match_score_resume: item.match_score_resume
+        ? String(item.match_score_resume)
+        : "",
       notes: item.notes ?? "",
     });
   };
@@ -211,7 +224,8 @@ export default function OpportunitiesPage() {
       url: "",
       source: "",
       status: "New",
-      match_score: "",
+      match_score_actual: "",
+      match_score_resume: "",
       notes: "",
     });
   };
@@ -341,14 +355,35 @@ export default function OpportunitiesPage() {
             </div>
             <div>
               <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                Match Score
+                Actual Match Score
               </label>
               <input
                 type="number"
                 className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={form.match_score}
+                value={form.match_score_actual}
                 onChange={(e) =>
-                  setForm((prev) => ({ ...prev, match_score: e.target.value }))
+                  setForm((prev) => ({
+                    ...prev,
+                    match_score_actual: e.target.value,
+                  }))
+                }
+                min="0"
+                max="100"
+              />
+            </div>
+            <div>
+              <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                Resume Tweak Match Score
+              </label>
+              <input
+                type="number"
+                className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                value={form.match_score_resume}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    match_score_resume: e.target.value,
+                  }))
                 }
                 min="0"
                 max="100"
@@ -469,7 +504,8 @@ export default function OpportunitiesPage() {
                   <th className="px-3">Workspace</th>
                   <th className="px-3">Status</th>
                   <th className="px-3">Source</th>
-                  <th className="px-3">Score</th>
+                  <th className="px-3">Actual</th>
+                  <th className="px-3">Resume</th>
                   <th className="px-3">Link</th>
                 </tr>
               </thead>
@@ -516,7 +552,12 @@ export default function OpportunitiesPage() {
                       </select>
                     </td>
                     <td className="px-3 py-3">{item.source ?? "—"}</td>
-                    <td className="px-3 py-3">{item.match_score ?? "—"}</td>
+                    <td className="px-3 py-3">
+                      {item.match_score_actual ?? "—"}
+                    </td>
+                    <td className="px-3 py-3">
+                      {item.match_score_resume ?? "—"}
+                    </td>
                     <td className="px-3 py-3">
                       {item.url ? (
                         <a
