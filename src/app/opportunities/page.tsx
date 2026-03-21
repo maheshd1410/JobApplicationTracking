@@ -369,6 +369,7 @@ export default function OpportunitiesPage() {
                 }
                 min="0"
                 max="100"
+                step="0.1"
               />
             </div>
             <div>
@@ -387,6 +388,7 @@ export default function OpportunitiesPage() {
                 }
                 min="0"
                 max="100"
+                step="0.1"
               />
             </div>
             <div className="md:col-span-2">
