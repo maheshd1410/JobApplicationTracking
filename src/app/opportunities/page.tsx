@@ -31,6 +31,7 @@ export default function OpportunitiesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filters, setFilters] = useState({ status: "", q: "" });
+  const [editing, setEditing] = useState<Opportunity | null>(null);
   const [form, setForm] = useState({
     title: "",
     company: "",
@@ -132,11 +133,14 @@ export default function OpportunitiesPage() {
         ...form,
         match_score: form.match_score ? Number(form.match_score) : null,
       };
-      const res = await fetch("/api/opportunities", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await fetch(
+        editing ? `/api/opportunities/${editing.id}` : "/api/opportunities",
+        {
+          method: editing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data?.error || "Failed to create opportunity.");
@@ -151,6 +155,7 @@ export default function OpportunitiesPage() {
         match_score: "",
         notes: "",
       });
+      setEditing(null);
       setFilters((prev) => ({ ...prev }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unexpected error.");
@@ -181,6 +186,34 @@ export default function OpportunitiesPage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleEdit = (item: Opportunity) => {
+    setEditing(item);
+    setForm({
+      title: item.title ?? "",
+      company: item.company ?? "",
+      location: item.location ?? "",
+      url: item.url ?? "",
+      source: item.source ?? "",
+      status: item.status ?? "New",
+      match_score: item.match_score ? String(item.match_score) : "",
+      notes: item.notes ?? "",
+    });
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(null);
+    setForm({
+      title: "",
+      company: "",
+      location: "",
+      url: "",
+      source: "",
+      status: "New",
+      match_score: "",
+      notes: "",
+    });
   };
 
   return (
@@ -338,13 +371,29 @@ export default function OpportunitiesPage() {
               <p className="text-xs text-[var(--muted)]">
                 Required: Role Title, Company
               </p>
-              <button
-                className="rounded-full bg-[var(--accent)] px-6 py-2 text-sm font-semibold text-white"
-                type="submit"
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Add Opportunity"}
-              </button>
+              <div className="flex items-center gap-3">
+                {editing && (
+                  <button
+                    className="rounded-full border border-[var(--line)] px-5 py-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={saving}
+                  >
+                    Cancel
+                  </button>
+                )}
+                <button
+                  className="rounded-full bg-[var(--accent)] px-6 py-2 text-sm font-semibold text-white"
+                  type="submit"
+                  disabled={saving}
+                >
+                  {saving
+                    ? "Saving..."
+                    : editing
+                      ? "Update Opportunity"
+                      : "Add Opportunity"}
+                </button>
+              </div>
             </div>
           </form>
         </header>
@@ -416,6 +465,7 @@ export default function OpportunitiesPage() {
                 <tr>
                   <th className="px-3">Company</th>
                   <th className="px-3">Role</th>
+                  <th className="px-3">Edit</th>
                   <th className="px-3">Workspace</th>
                   <th className="px-3">Status</th>
                   <th className="px-3">Source</th>
@@ -431,6 +481,14 @@ export default function OpportunitiesPage() {
                   >
                     <td className="px-3 py-3 font-medium">{item.company}</td>
                     <td className="px-3 py-3">{item.title}</td>
+                    <td className="px-3 py-3">
+                      <button
+                        className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                        onClick={() => handleEdit(item)}
+                      >
+                        Edit
+                      </button>
+                    </td>
                     <td className="px-3 py-3">
                       <a
                         className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
