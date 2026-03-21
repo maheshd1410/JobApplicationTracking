@@ -8,6 +8,7 @@ const tabs = [
   { key: "LINKEDIN", label: "LinkedIn" },
   { key: "STUDY", label: "Study" },
   { key: "NOTES", label: "Notes" },
+  { key: "CV", label: "CV Builder" },
   { key: "DOCS", label: "Shared Documents" },
 ] as const;
 
@@ -48,6 +49,70 @@ type DocumentItem = {
   updated_at: string;
 };
 
+type CvExperience = {
+  start: string;
+  end: string;
+  role: string;
+  company: string;
+  location: string;
+  bullets: string[];
+};
+
+type CvEducation = {
+  date: string;
+  title: string;
+  school: string;
+  location: string;
+};
+
+type CvData = {
+  name: string;
+  title: string;
+  summary: string;
+  contact: {
+    address: string;
+    phone: string;
+    email: string;
+    linkedin: string;
+  };
+  websites: string[];
+  core_skills: string[];
+  specialties: string[];
+  experience: CvExperience[];
+  education: CvEducation[];
+  certifications: string[];
+  impact: string[];
+};
+
+type CvRow = {
+  id: string;
+  opportunity_id: string;
+  data: CvData;
+  photo_url: string | null;
+  pdf_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const defaultCvData: CvData = {
+  name: "",
+  title: "",
+  summary: "",
+  contact: {
+    address: "",
+    phone: "",
+    email: "",
+    linkedin: "",
+  },
+  websites: [],
+  core_skills: [],
+  specialties: [],
+  experience: [],
+  education: [],
+  certifications: [],
+  impact: [],
+};
+
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString();
 }
@@ -72,6 +137,12 @@ export default function OpportunityDetailPage() {
   const [docNote, setDocNote] = useState("");
   const [docEditing, setDocEditing] = useState<DocumentItem | null>(null);
   const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [cvData, setCvData] = useState<CvData>(defaultCvData);
+  const [cvRow, setCvRow] = useState<CvRow | null>(null);
+  const [cvPhotoFile, setCvPhotoFile] = useState<File | null>(null);
+  const [cvSaving, setCvSaving] = useState(false);
+  const [cvPhotoUploading, setCvPhotoUploading] = useState(false);
+  const [cvPdfGenerating, setCvPdfGenerating] = useState(false);
 
   const loadOpportunity = async () => {
     if (!opportunityId) return;
@@ -103,6 +174,23 @@ export default function OpportunityDetailPage() {
           throw new Error(payload?.error || "Failed to load documents.");
         }
         setDocuments(payload.data ?? []);
+        return;
+      }
+      if (type === "CV") {
+        const res = await fetch(`/api/opportunities/${opportunityId}/cv`, {
+          cache: "no-store",
+        });
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.error || "Failed to load CV data.");
+        }
+        if (payload.data) {
+          setCvRow(payload.data);
+          setCvData({ ...defaultCvData, ...(payload.data.data ?? {}) });
+        } else {
+          setCvRow(null);
+          setCvData(defaultCvData);
+        }
         return;
       }
 
@@ -137,6 +225,7 @@ export default function OpportunityDetailPage() {
     setDocNote("");
     setDocFile(null);
     setPreviewDocId(null);
+    setCvPhotoFile(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -145,8 +234,8 @@ export default function OpportunityDetailPage() {
       setError("Missing opportunity id.");
       return;
     }
-    if (activeTab === "DOCS") {
-      setError("Use the document upload controls to add files.");
+    if (activeTab === "DOCS" || activeTab === "CV") {
+      setError("Use the CV builder controls to save CV content or documents.");
       return;
     }
     if (!form.title.trim() || !form.content.trim()) {
@@ -341,6 +430,143 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const toList = (value: string) =>
+    value
+      .split("\n")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  const listToText = (items: string[]) => items.join("\n");
+
+  const updateExperience = (index: number, patch: Partial<CvExperience>) => {
+    setCvData((prev) => {
+      const next = [...prev.experience];
+      next[index] = { ...next[index], ...patch };
+      return { ...prev, experience: next };
+    });
+  };
+
+  const addExperience = () => {
+    setCvData((prev) => ({
+      ...prev,
+      experience: [
+        ...prev.experience,
+        { start: "", end: "", role: "", company: "", location: "", bullets: [] },
+      ],
+    }));
+  };
+
+  const removeExperience = (index: number) => {
+    setCvData((prev) => ({
+      ...prev,
+      experience: prev.experience.filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const updateEducation = (index: number, patch: Partial<CvEducation>) => {
+    setCvData((prev) => {
+      const next = [...prev.education];
+      next[index] = { ...next[index], ...patch };
+      return { ...prev, education: next };
+    });
+  };
+
+  const addEducation = () => {
+    setCvData((prev) => ({
+      ...prev,
+      education: [
+        ...prev.education,
+        { date: "", title: "", school: "", location: "" },
+      ],
+    }));
+  };
+
+  const removeEducation = (index: number) => {
+    setCvData((prev) => ({
+      ...prev,
+      education: prev.education.filter((_, idx) => idx !== index),
+    }));
+  };
+
+  const handleCvSave = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    setCvSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}/cv`, {
+        method: cvRow ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: cvData }),
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to save CV.");
+      }
+      setCvRow(payload.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setCvSaving(false);
+    }
+  };
+
+  const handleCvPhotoUpload = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    if (!cvPhotoFile) {
+      setError("Select a photo to upload.");
+      return;
+    }
+    setCvPhotoUploading(true);
+    setError(null);
+    try {
+      const data = new FormData();
+      data.append("file", cvPhotoFile);
+      const res = await fetch(`/api/opportunities/${opportunityId}/cv/photo`, {
+        method: "POST",
+        body: data,
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to upload photo.");
+      }
+      setCvRow(payload.data);
+      setCvPhotoFile(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setCvPhotoUploading(false);
+    }
+  };
+
+  const handleCvGeneratePdf = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    setCvPdfGenerating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/opportunities/${opportunityId}/cv/pdf`, {
+        method: "POST",
+      });
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to generate PDF.");
+      }
+      setCvRow(payload.data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setCvPdfGenerating(false);
+    }
+  };
+
   return (
     <div className="min-h-screen px-6 py-10 text-[15px] md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -394,7 +620,368 @@ export default function OpportunityDetailPage() {
           )}
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-            {activeTab === "DOCS" ? (
+            {activeTab === "CV" ? (
+              <div className="lg:col-span-2 grid gap-6">
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h2 className="text-lg font-semibold">CV Builder</h2>
+                      <p className="mt-1 text-sm text-[var(--muted)]">
+                        Save structured content, upload photo, and generate the A4 PDF.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                        onClick={handleCvSave}
+                        disabled={cvSaving}
+                      >
+                        {cvSaving ? "Saving..." : "Save CV"}
+                      </button>
+                      <button
+                        className="rounded-full border border-[var(--line)] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
+                        onClick={handleCvGeneratePdf}
+                        disabled={cvPdfGenerating}
+                      >
+                        {cvPdfGenerating ? "Generating..." : "Generate PDF"}
+                      </button>
+                      {cvRow?.pdf_url && (
+                        <a
+                          className="rounded-full border border-[var(--line)] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                          href={cvRow.pdf_url}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Open PDF
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+                  <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                      Sidebar Details
+                    </h3>
+                    <div className="mt-4 flex flex-col gap-3">
+                      <input
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Full name"
+                        value={cvData.name}
+                        onChange={(e) =>
+                          setCvData((prev) => ({ ...prev, name: e.target.value }))
+                        }
+                      />
+                      <input
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Title (e.g., Senior Engineering Leader)"
+                        value={cvData.title}
+                        onChange={(e) =>
+                          setCvData((prev) => ({ ...prev, title: e.target.value }))
+                        }
+                      />
+                      <textarea
+                        className="min-h-[120px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Professional summary"
+                        value={cvData.summary}
+                        onChange={(e) =>
+                          setCvData((prev) => ({ ...prev, summary: e.target.value }))
+                        }
+                      />
+
+                      <div className="grid gap-3">
+                        <input
+                          className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                          placeholder="Address"
+                          value={cvData.contact.address}
+                          onChange={(e) =>
+                            setCvData((prev) => ({
+                              ...prev,
+                              contact: { ...prev.contact, address: e.target.value },
+                            }))
+                          }
+                        />
+                        <input
+                          className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                          placeholder="Phone"
+                          value={cvData.contact.phone}
+                          onChange={(e) =>
+                            setCvData((prev) => ({
+                              ...prev,
+                              contact: { ...prev.contact, phone: e.target.value },
+                            }))
+                          }
+                        />
+                        <input
+                          className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                          placeholder="Email"
+                          value={cvData.contact.email}
+                          onChange={(e) =>
+                            setCvData((prev) => ({
+                              ...prev,
+                              contact: { ...prev.contact, email: e.target.value },
+                            }))
+                          }
+                        />
+                        <input
+                          className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                          placeholder="LinkedIn URL"
+                          value={cvData.contact.linkedin}
+                          onChange={(e) =>
+                            setCvData((prev) => ({
+                              ...prev,
+                              contact: { ...prev.contact, linkedin: e.target.value },
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="rounded-xl border border-[var(--line)] bg-white/80 p-3">
+                        <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                          Passport Photo
+                        </p>
+                        {cvRow?.photo_url && (
+                          <img
+                            src={cvRow.photo_url}
+                            alt="CV photo"
+                            className="mt-3 h-28 w-28 rounded-lg object-cover"
+                          />
+                        )}
+                        <input
+                          type="file"
+                          className="mt-3 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                          onChange={(e) =>
+                            setCvPhotoFile(e.target.files?.[0] ?? null)
+                          }
+                        />
+                        <button
+                          className="mt-3 rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                          onClick={handleCvPhotoUpload}
+                          disabled={cvPhotoUploading}
+                        >
+                          {cvPhotoUploading ? "Uploading..." : "Upload Photo"}
+                        </button>
+                      </div>
+
+                      <textarea
+                        className="min-h-[110px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Websites (one per line)"
+                        value={listToText(cvData.websites)}
+                        onChange={(e) =>
+                          setCvData((prev) => ({
+                            ...prev,
+                            websites: toList(e.target.value),
+                          }))
+                        }
+                      />
+                      <textarea
+                        className="min-h-[110px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Core skills (one per line)"
+                        value={listToText(cvData.core_skills)}
+                        onChange={(e) =>
+                          setCvData((prev) => ({
+                            ...prev,
+                            core_skills: toList(e.target.value),
+                          }))
+                        }
+                      />
+                      <textarea
+                        className="min-h-[110px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Specialties (one per line)"
+                        value={listToText(cvData.specialties)}
+                        onChange={(e) =>
+                          setCvData((prev) => ({
+                            ...prev,
+                            specialties: toList(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                      Main Content
+                    </h3>
+                    <div className="mt-4 flex flex-col gap-5">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold">Experience</h4>
+                          <button
+                            className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                            onClick={addExperience}
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-4">
+                          {cvData.experience.map((exp, index) => (
+                            <div
+                              key={`${exp.company}-${index}`}
+                              className="rounded-xl border border-[var(--line)] bg-white/80 p-3"
+                            >
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Start (e.g., 2022-03)"
+                                  value={exp.start}
+                                  onChange={(e) =>
+                                    updateExperience(index, { start: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="End (e.g., 2024-10 or Current)"
+                                  value={exp.end}
+                                  onChange={(e) =>
+                                    updateExperience(index, { end: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2 md:col-span-2"
+                                  placeholder="Role Title"
+                                  value={exp.role}
+                                  onChange={(e) =>
+                                    updateExperience(index, { role: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Company"
+                                  value={exp.company}
+                                  onChange={(e) =>
+                                    updateExperience(index, { company: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Location"
+                                  value={exp.location}
+                                  onChange={(e) =>
+                                    updateExperience(index, { location: e.target.value })
+                                  }
+                                />
+                              </div>
+                              <textarea
+                                className="mt-3 min-h-[100px] w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                placeholder="Bullets (one per line)"
+                                value={listToText(exp.bullets)}
+                                onChange={(e) =>
+                                  updateExperience(index, {
+                                    bullets: toList(e.target.value),
+                                  })
+                                }
+                              />
+                              <button
+                                className="mt-2 text-xs uppercase tracking-[0.2em] text-red-500"
+                                onClick={() => removeExperience(index)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                          {!cvData.experience.length && (
+                            <p className="text-sm text-[var(--muted)]">
+                              Add your experience entries here.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-semibold">Education</h4>
+                          <button
+                            className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                            onClick={addEducation}
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-4">
+                          {cvData.education.map((edu, index) => (
+                            <div
+                              key={`${edu.title}-${index}`}
+                              className="rounded-xl border border-[var(--line)] bg-white/80 p-3"
+                            >
+                              <div className="grid gap-3 md:grid-cols-2">
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Date (e.g., 2021-10)"
+                                  value={edu.date}
+                                  onChange={(e) =>
+                                    updateEducation(index, { date: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Degree / Program"
+                                  value={edu.title}
+                                  onChange={(e) =>
+                                    updateEducation(index, { title: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="University / School"
+                                  value={edu.school}
+                                  onChange={(e) =>
+                                    updateEducation(index, { school: e.target.value })
+                                  }
+                                />
+                                <input
+                                  className="w-full rounded-lg border border-[var(--line)] bg-transparent px-3 py-2"
+                                  placeholder="Location"
+                                  value={edu.location}
+                                  onChange={(e) =>
+                                    updateEducation(index, { location: e.target.value })
+                                  }
+                                />
+                              </div>
+                              <button
+                                className="mt-2 text-xs uppercase tracking-[0.2em] text-red-500"
+                                onClick={() => removeEducation(index)}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                          {!cvData.education.length && (
+                            <p className="text-sm text-[var(--muted)]">
+                              Add your education details here.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      <textarea
+                        className="min-h-[120px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Certifications (one per line)"
+                        value={listToText(cvData.certifications)}
+                        onChange={(e) =>
+                          setCvData((prev) => ({
+                            ...prev,
+                            certifications: toList(e.target.value),
+                          }))
+                        }
+                      />
+                      <textarea
+                        className="min-h-[140px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Platform & Product Impact (one per line)"
+                        value={listToText(cvData.impact)}
+                        onChange={(e) =>
+                          setCvData((prev) => ({
+                            ...prev,
+                            impact: toList(e.target.value),
+                          }))
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === "DOCS" ? (
               <div className="lg:col-span-2 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
                   <h2 className="text-lg font-semibold">

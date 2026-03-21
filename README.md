@@ -108,6 +108,18 @@ create table if not exists opportunity_documents (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists opportunity_cvs (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  photo_path text,
+  photo_url text,
+  pdf_path text,
+  pdf_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists daily_inventory (
   id uuid primary key default gen_random_uuid(),
   inventory_date date not null unique,
@@ -180,6 +192,8 @@ create index if not exists idx_opportunity_content_opportunity
   on opportunity_content (opportunity_id);
 create index if not exists idx_opportunity_documents_opportunity
   on opportunity_documents (opportunity_id);
+create index if not exists idx_opportunity_cvs_opportunity
+  on opportunity_cvs (opportunity_id);
 create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
 create index if not exists idx_inventory_date
@@ -234,6 +248,21 @@ alter table opportunity_documents
 
 create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
+
+create table if not exists opportunity_cvs (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  data jsonb not null default '{}'::jsonb,
+  photo_path text,
+  photo_url text,
+  pdf_path text,
+  pdf_url text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_opportunity_cvs_opportunity
+  on opportunity_cvs (opportunity_id);
 
 -- One-time backfill for existing opportunity_documents rows
 with ranked as (
@@ -335,6 +364,12 @@ We store uploaded screenshots there and save the public URL in the database.
 
 Create a public bucket named `opportunity-documents` in Supabase Storage.
 We store shared documents per opportunity there and save the public URL.
+
+Create a public bucket named `cv-photos` in Supabase Storage.
+We store passport-size photos for CV rendering there.
+
+Create a public bucket named `cv-pdfs` in Supabase Storage.
+We store generated CV PDFs there.
 
 ## Deployment (Vercel)
 
