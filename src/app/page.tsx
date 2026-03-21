@@ -148,7 +148,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Application | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 10;
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
@@ -258,63 +257,6 @@ export default function Home() {
       setCurrentPage(totalPages);
     }
   }, [applications.length, currentPage]);
-
-  const handleUpdate = async () => {
-    if (!selected) return;
-    if (!selected.id) {
-      setError("No application id found for update.");
-      return;
-    }
-    if (typeof selected.status === "string" && !selected.status.trim()) {
-      setError("Status is required.");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-
-    try {
-      const res = await fetch(`/api/applications/${selected.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(selected),
-      });
-
-      const payload = await res.json();
-
-      if (!res.ok) {
-        const message =
-          payload?.error || "Failed to update application.";
-        throw new Error(message);
-      }
-
-      const updated = payload?.data as Application | undefined;
-
-      if (!updated?.id) {
-        throw new Error("Update failed to return a record.");
-      }
-
-      setApplications((prev) =>
-        prev
-          .filter(Boolean)
-          .map((item) => (item.id === updated.id ? updated : item))
-      );
-      setFollowUps((prev) => {
-        const remaining = prev
-          .filter(Boolean)
-          .filter((item) => item.id !== updated.id);
-        const isDue =
-          updated.follow_up_date && updated.follow_up_date <= today;
-        return isDue ? [updated, ...remaining] : remaining;
-      });
-
-      setSelected(null);
-      setFilters((prev) => ({ ...prev }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unexpected error.");
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleInlineStatusChange = async (id: string, status: string) => {
     if (!id) return;
@@ -882,124 +824,6 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
-              <h3 className="text-xl font-semibold">Quick Edit</h3>
-              <p className="mt-1 text-sm text-[var(--muted)]">
-                Click a row to update status or notes.
-              </p>
-
-              {selected ? (
-                <div className="mt-4 flex flex-col gap-3 text-sm">
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Company
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={selected.company}
-                      onChange={(e) =>
-                        setSelected({ ...selected, company: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Role Title
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={selected.role_title}
-                      onChange={(e) =>
-                        setSelected({ ...selected, role_title: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Status
-                    </label>
-                    <select
-                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={selected.status}
-                      onChange={(e) =>
-                        setSelected({
-                          ...selected,
-                          status: e.target.value as Application["status"],
-                        })
-                      }
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Follow-up Date
-                    </label>
-                    <input
-                      type="date"
-                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={selected.follow_up_date ?? ""}
-                      onChange={(e) =>
-                        setSelected({
-                          ...selected,
-                          follow_up_date: e.target.value,
-                        })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Notes
-                    </label>
-                    <textarea
-                      className="mt-2 min-h-[90px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={selected.notes ?? ""}
-                      onChange={(e) =>
-                        setSelected({ ...selected, notes: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
-                      Tags
-                    </label>
-                    <input
-                      className="mt-2 w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                      value={(selected.tags ?? []).join(", ")}
-                      onChange={(e) =>
-                        setSelected({
-                          ...selected,
-                          tags: parseTags(e.target.value),
-                        })
-                      }
-                    />
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      className="rounded-full bg-[var(--accent-2)] px-5 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
-                      onClick={handleUpdate}
-                      disabled={saving}
-                    >
-                      {saving ? "Saving..." : "Save"}
-                    </button>
-                    <button
-                      className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
-                      onClick={() => setSelected(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="mt-4 text-sm text-[var(--muted)]">
-                  Select an application to edit status, follow-ups, and notes.
-                </div>
-              )}
-            </div>
           </aside>
         </section>
       </div>
