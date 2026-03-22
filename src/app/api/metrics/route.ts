@@ -12,17 +12,22 @@ export async function GET(request: Request) {
     );
   }
 
+  const start = new Date(`${date}T00:00:00.000Z`);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 1);
+
   const { count: appliedTodayCount, error: appliedError } = await supabase
-    .from("applications")
+    .from("opportunities")
     .select("id", { count: "exact", head: true })
-    .eq("date_applied", date);
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString());
 
   if (appliedError) {
     return NextResponse.json({ error: appliedError.message }, { status: 500 });
   }
 
   const { count: totalCount, error: totalError } = await supabase
-    .from("applications")
+    .from("opportunities")
     .select("id", { count: "exact", head: true });
 
   if (totalError) {

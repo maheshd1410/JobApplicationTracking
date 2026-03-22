@@ -360,13 +360,13 @@ export default function Home() {
             </div>
             <div className="flex flex-col items-start gap-3 rounded-2xl border border-[var(--line)] bg-white/70 p-4 backdrop-blur">
               <span className="text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
-                Today
+                Opportunities Added Today
               </span>
               <div className="text-3xl font-semibold">
                 {metrics.appliedToday} / {dailyTarget}
               </div>
               <div className="text-xs text-[var(--muted)]">
-                Total tracked: {metrics.total}
+                Total opportunities: {metrics.total}
               </div>
             </div>
           </div>
