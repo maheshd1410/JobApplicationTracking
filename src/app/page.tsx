@@ -315,7 +315,7 @@ export default function Home() {
                 Job Application Tracker
               </h1>
               <p className="mt-2 max-w-2xl text-[var(--muted)]">
-                Track every application, keep your follow-ups tight, and hit your
+                Track every opportunity, keep your pipeline tight, and hit your
                 daily goal without the spreadsheet pain.
               </p>
             </div>
@@ -645,10 +645,10 @@ export default function Home() {
                   <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
                   Applied
                 </span>
-                <span className="flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-[var(--accent-2)]" />
-                  In Queue
-                </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-[var(--accent-2)]" />
+                    New
+                  </span>
               </div>
               <div className="mt-6 grid gap-2 text-xs text-[var(--muted)]">
                 {statusBreakdown.map((item) => (

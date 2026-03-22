@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { statusOptions } from "@/lib/types";
+
+const opportunityStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
 function toDateString(date: Date) {
   return date.toISOString().slice(0, 10);
@@ -20,9 +21,9 @@ export async function GET() {
   start.setUTCDate(start.getUTCDate() - 56);
 
   const { data, error } = await supabase
-    .from("applications")
-    .select("date_applied,status")
-    .gte("date_applied", toDateString(start));
+    .from("opportunities")
+    .select("created_at,status")
+    .gte("created_at", toDateString(start));
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -33,11 +34,11 @@ export async function GET() {
   const queueMap = new Map<string, number>();
   const statusMap = new Map<string, number>();
 
-  statusOptions.forEach((status) => statusMap.set(status, 0));
+  opportunityStatuses.forEach((status) => statusMap.set(status, 0));
 
   (data ?? []).forEach((row) => {
-    if (!row.date_applied) return;
-    const weekStart = getWeekStart(row.date_applied);
+    if (!row.created_at) return;
+    const weekStart = getWeekStart(row.created_at.slice(0, 10));
     weekMap.set(weekStart, (weekMap.get(weekStart) ?? 0) + 1);
 
     if (row.status) {
@@ -45,7 +46,7 @@ export async function GET() {
       if (row.status === "Applied") {
         appliedMap.set(weekStart, (appliedMap.get(weekStart) ?? 0) + 1);
       }
-      if (row.status === "In Queue") {
+      if (row.status === "New") {
         queueMap.set(weekStart, (queueMap.get(weekStart) ?? 0) + 1);
       }
     }
