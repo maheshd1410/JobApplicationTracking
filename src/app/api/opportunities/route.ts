@@ -63,6 +63,7 @@ export async function POST(request: Request) {
     status,
     match_score_actual: body.match_score_actual ?? null,
     match_score_resume: body.match_score_resume ?? null,
+    rejection_reason: body.rejection_reason ?? null,
     notes: body.notes ?? null,
     created_at: now,
     updated_at: now,

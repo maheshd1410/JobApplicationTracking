@@ -77,6 +77,7 @@ create table if not exists opportunities (
   status text not null default 'New',
   match_score_actual numeric,
   match_score_resume numeric,
+  rejection_reason text,
   notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -224,6 +225,9 @@ alter table opportunities
 
 alter table opportunities
   add column if not exists match_score_resume numeric;
+
+alter table opportunities
+  add column if not exists rejection_reason text;
 
 -- Optional: migrate legacy match_score into match_score_actual
 update opportunities

@@ -14,6 +14,7 @@ type Opportunity = {
   status: OpportunityStatus;
   match_score_actual: number | null;
   match_score_resume: number | null;
+  rejection_reason: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -42,6 +43,7 @@ export default function OpportunitiesPage() {
     status: "New",
     match_score_actual: "",
     match_score_resume: "",
+    rejection_reason: "",
     notes: "",
   });
 
@@ -161,6 +163,7 @@ export default function OpportunitiesPage() {
         status: "New",
         match_score_actual: "",
         match_score_resume: "",
+        rejection_reason: "",
         notes: "",
       });
       setEditing(null);
@@ -211,6 +214,7 @@ export default function OpportunitiesPage() {
       match_score_resume: item.match_score_resume
         ? String(item.match_score_resume)
         : "",
+      rejection_reason: item.rejection_reason ?? "",
       notes: item.notes ?? "",
     });
   };
@@ -226,6 +230,7 @@ export default function OpportunitiesPage() {
       status: "New",
       match_score_actual: "",
       match_score_resume: "",
+      rejection_reason: "",
       notes: "",
     });
   };
@@ -353,6 +358,24 @@ export default function OpportunitiesPage() {
                 ))}
               </select>
             </div>
+            {form.status === "Rejected" && (
+              <div className="md:col-span-2">
+                <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                  Rejection Reason
+                </label>
+                <textarea
+                  className="mt-2 min-h-[90px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                  value={form.rejection_reason}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      rejection_reason: e.target.value,
+                    }))
+                  }
+                  placeholder="Why was this opportunity rejected?"
+                />
+              </div>
+            )}
             <div>
               <label className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 Actual Match Score

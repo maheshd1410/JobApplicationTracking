@@ -60,6 +60,11 @@ export async function PATCH(
   if (body.match_score_resume !== undefined) {
     updates.match_score_resume = body.match_score_resume;
   }
+  if (body.rejection_reason !== undefined) {
+    updates.rejection_reason = body.rejection_reason
+      ? String(body.rejection_reason)
+      : null;
+  }
   if (body.notes !== undefined) {
     updates.notes = body.notes ? String(body.notes) : null;
   }
