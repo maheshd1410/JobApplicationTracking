@@ -121,6 +121,14 @@ create table if not exists opportunity_cvs (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists opportunity_events (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  status text not null,
+  event_type text not null default 'status',
+  created_at timestamptz not null default now()
+);
+
 create table if not exists daily_inventory (
   id uuid primary key default gen_random_uuid(),
   inventory_date date not null unique,
@@ -195,8 +203,20 @@ create index if not exists idx_opportunity_documents_opportunity
   on opportunity_documents (opportunity_id);
 create index if not exists idx_opportunity_cvs_opportunity
   on opportunity_cvs (opportunity_id);
+create index if not exists idx_opportunity_events_opportunity
+  on opportunity_events (opportunity_id);
+create index if not exists idx_opportunity_events_date
+  on opportunity_events (created_at);
 create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
+
+-- Backfill opportunity events for existing rows (one event per opportunity)
+insert into opportunity_events (opportunity_id, status, event_type, created_at)
+select id, status, 'status', created_at
+from opportunities
+where not exists (
+  select 1 from opportunity_events e where e.opportunity_id = opportunities.id
+);
 create index if not exists idx_inventory_date
   on daily_inventory (inventory_date);
 create index if not exists idx_inventory_items_inventory
@@ -267,6 +287,19 @@ create table if not exists opportunity_cvs (
 
 create index if not exists idx_opportunity_cvs_opportunity
   on opportunity_cvs (opportunity_id);
+
+create table if not exists opportunity_events (
+  id uuid primary key default gen_random_uuid(),
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  status text not null,
+  event_type text not null default 'status',
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_opportunity_events_opportunity
+  on opportunity_events (opportunity_id);
+create index if not exists idx_opportunity_events_date
+  on opportunity_events (created_at);
 
 -- One-time backfill for existing opportunity_documents rows
 with ranked as (

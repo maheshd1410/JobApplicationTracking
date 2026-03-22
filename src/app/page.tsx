@@ -17,6 +17,13 @@ type WeeklyPoint = {
   inQueue: number;
 };
 type StatusPoint = { status: string; count: number };
+type OpportunityEvent = {
+  id: string;
+  opportunity_id: string;
+  status: OpportunityStatus;
+  event_type: string;
+  created_at: string;
+};
 
 type OpportunityStatus = "New" | "Shortlisted" | "Applied" | "Rejected";
 
@@ -133,6 +140,7 @@ export default function Home() {
   const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
   const [statusBreakdown, setStatusBreakdown] = useState<StatusPoint[]>([]);
   const [metrics, setMetrics] = useState({ appliedToday: 0, total: 0 });
+  const [events, setEvents] = useState<OpportunityEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -204,6 +212,39 @@ export default function Home() {
       ignore = true;
     };
   }, [filters, today]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadEvents = async () => {
+      try {
+        const start = startOfWeek(startOfMonth(calendarMonth));
+        const end = endOfMonth(calendarMonth);
+        const from = toDateKey(start);
+        const to = toDateKey(end);
+        const res = await fetch(
+          `/api/opportunities/events?from=${from}&to=${to}`,
+          { cache: "no-store" }
+        );
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.error || "Failed to load events.");
+        }
+        if (!ignore) {
+          setEvents((payload.data ?? []) as OpportunityEvent[]);
+        }
+      } catch (err) {
+        if (!ignore) {
+          setError(err instanceof Error ? err.message : "Unexpected error.");
+        }
+      }
+    };
+
+    loadEvents();
+
+    return () => {
+      ignore = true;
+    };
+  }, [calendarMonth]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -291,16 +332,14 @@ export default function Home() {
 
   const calendarCounts = useMemo(() => {
     const counts: Record<string, Record<string, number>> = {};
-    opportunities.forEach((item) => {
-      const status = item.status ?? "Unknown";
-      const baseDate = item.created_at ?? item.updated_at;
-      if (!baseDate) return;
-      const key = baseDate.slice(0, 10);
+    events.forEach((event) => {
+      const status = event.status ?? "Unknown";
+      const key = event.created_at.slice(0, 10);
       if (!counts[key]) counts[key] = {};
       counts[key][status] = (counts[key][status] ?? 0) + 1;
     });
     return counts;
-  }, [opportunities]);
+  }, [events]);
 
   return (
     <div className="min-h-screen px-6 py-12 text-[15px] md:px-10">

@@ -79,5 +79,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  await supabase.from("opportunity_events").insert({
+    opportunity_id: data.id,
+    status: data.status,
+    event_type: "status",
+    created_at: now,
+  });
+
   return NextResponse.json({ data }, { status: 201 });
 }

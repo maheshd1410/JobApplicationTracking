@@ -28,6 +28,7 @@ export async function PATCH(
 
   const body = await request.json();
   const updates: Record<string, unknown> = {};
+  let statusChanged: string | null = null;
 
   if (body.title !== undefined) {
     updates.title = String(body.title).trim();
@@ -51,6 +52,14 @@ export async function PATCH(
         { error: "Invalid status." },
         { status: 400 }
       );
+    }
+    const { data: existing } = await supabase
+      .from("opportunities")
+      .select("status")
+      .eq("id", id)
+      .single();
+    if (existing?.status !== status) {
+      statusChanged = status;
     }
     updates.status = status;
   }
@@ -100,6 +109,15 @@ export async function PATCH(
       { error: error?.message ?? `Opportunity not found for id: ${id}` },
       { status: 404 }
     );
+  }
+
+  if (statusChanged) {
+    await supabase.from("opportunity_events").insert({
+      opportunity_id: data.id,
+      status: statusChanged,
+      event_type: "status",
+      created_at: updates.updated_at,
+    });
   }
 
   return NextResponse.json({ data });
