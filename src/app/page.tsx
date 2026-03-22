@@ -1,7 +1,6 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Application, statusOptions } from "@/lib/types";
 
 const dailyTarget = 20;
 
@@ -9,10 +8,6 @@ type Filters = {
   status: string;
   source: string;
   q: string;
-  tags: string;
-  dateFrom: string;
-  dateTo: string;
-  followUpDue: boolean;
 };
 
 type WeeklyPoint = {
@@ -22,6 +17,30 @@ type WeeklyPoint = {
   inQueue: number;
 };
 type StatusPoint = { status: string; count: number };
+
+type OpportunityStatus = "New" | "Shortlisted" | "Applied" | "Rejected";
+
+type Opportunity = {
+  id: string;
+  title: string;
+  company: string;
+  location: string | null;
+  url: string | null;
+  source: string | null;
+  status: OpportunityStatus;
+  match_score_actual: number | null;
+  match_score_resume: number | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+const opportunityStatusOptions: OpportunityStatus[] = [
+  "New",
+  "Shortlisted",
+  "Applied",
+  "Rejected",
+];
 
 function toDateInput(date: Date) {
   const tzOffset = date.getTimezoneOffset() * 60000;
@@ -35,23 +54,6 @@ function formatShort(dateStr: string | null) {
     month: "short",
     day: "numeric",
   });
-}
-
-function formatLong(dateStr: string | null) {
-  if (!dateStr) return "—";
-  const date = new Date(`${dateStr}T00:00:00`);
-  return date.toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function parseTags(input: string) {
-  return input
-    .split(",")
-    .map((tag) => tag.trim())
-    .filter(Boolean);
 }
 
 function formatWeekLabel(weekStart: string) {
@@ -89,18 +91,12 @@ function statusColor(status: string) {
   switch (status) {
     case "Applied":
       return "bg-[var(--accent)]";
-    case "In Queue":
+    case "New":
       return "bg-[var(--accent-2)]";
-    case "Interview":
+    case "Shortlisted":
       return "bg-emerald-500";
-    case "Offer":
-      return "bg-sky-500";
     case "Rejected":
       return "bg-rose-500";
-    case "Withdrawn":
-      return "bg-orange-500";
-    case "No Response":
-      return "bg-amber-500";
     default:
       return "bg-slate-400";
   }
@@ -110,18 +106,12 @@ function statusAbbrev(status: string) {
   switch (status) {
     case "Applied":
       return "A";
-    case "In Queue":
-      return "Q";
-    case "Interview":
-      return "I";
-    case "Offer":
-      return "O";
+    case "New":
+      return "N";
+    case "Shortlisted":
+      return "S";
     case "Rejected":
       return "R";
-    case "Withdrawn":
-      return "W";
-    case "No Response":
-      return "N";
     default:
       return status.slice(0, 1).toUpperCase();
   }
@@ -134,14 +124,12 @@ export default function Home() {
     status: "",
     source: "",
     q: "",
-    tags: "",
-    dateFrom: "",
-    dateTo: "",
-    followUpDue: false,
   });
-  const [applications, setApplications] = useState<Application[]>([]);
-  const [followUps, setFollowUps] = useState<Application[]>([]);
-  const [inQueue, setInQueue] = useState<Application[]>([]);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [newOpportunities, setNewOpportunities] = useState<Opportunity[]>([]);
+  const [appliedOpportunities, setAppliedOpportunities] = useState<Opportunity[]>(
+    []
+  );
   const [weekly, setWeekly] = useState<WeeklyPoint[]>([]);
   const [statusBreakdown, setStatusBreakdown] = useState<StatusPoint[]>([]);
   const [metrics, setMetrics] = useState({ appliedToday: 0, total: 0 });
@@ -157,11 +145,11 @@ export default function Home() {
 
   const sourceOptions = useMemo(() => {
     const values = new Set<string>();
-    applications.forEach((item) => {
+    opportunities.forEach((item) => {
       if (item.source) values.add(item.source);
     });
     return Array.from(values).sort();
-  }, [applications]);
+  }, [opportunities]);
 
   useEffect(() => {
     let ignore = false;
@@ -173,50 +161,28 @@ export default function Home() {
         if (filters.status) params.set("status", filters.status);
         if (filters.source) params.set("source", filters.source);
         if (filters.q) params.set("q", filters.q);
-        if (filters.tags) params.set("tags", filters.tags);
-        if (filters.dateFrom) params.set("dateFrom", filters.dateFrom);
-        if (filters.dateTo) params.set("dateTo", filters.dateTo);
-        if (filters.followUpDue) {
-          params.set("followUpDue", "1");
-          params.set("followUpDate", today);
-        }
+        const [listRes, analyticsRes, metricsRes] = await Promise.all([
+          fetch(`/api/opportunities?${params.toString()}`, {
+            cache: "no-store",
+          }),
+          fetch(`/api/analytics/weekly`, { cache: "no-store" }),
+          fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
+        ]);
 
-        const [listRes, followRes, queueRes, analyticsRes, metricsRes] =
-          await Promise.all([
-            fetch(`/api/applications?${params.toString()}`, {
-              cache: "no-store",
-            }),
-            fetch(`/api/applications?followUpDue=1&followUpDate=${today}`, {
-              cache: "no-store",
-            }),
-            fetch(`/api/applications?status=In%20Queue`, {
-              cache: "no-store",
-            }),
-            fetch(`/api/analytics/weekly`, { cache: "no-store" }),
-            fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
-          ]);
-
-        if (
-          !listRes.ok ||
-          !followRes.ok ||
-          !queueRes.ok ||
-          !analyticsRes.ok ||
-          !metricsRes.ok
-        ) {
+        if (!listRes.ok || !analyticsRes.ok || !metricsRes.ok) {
           throw new Error("Failed to load data.");
         }
 
         const listJson = await listRes.json();
-        const followJson = await followRes.json();
-        const queueJson = await queueRes.json();
         const analyticsJson = await analyticsRes.json();
         const metricsJson = await metricsRes.json();
 
         if (ignore) return;
 
-        setApplications((listJson.data ?? []).filter(Boolean));
-        setFollowUps((followJson.data ?? []).filter(Boolean));
-        setInQueue((queueJson.data ?? []).filter(Boolean));
+        const list = (listJson.data ?? []).filter(Boolean) as Opportunity[];
+        setOpportunities(list);
+        setNewOpportunities(list.filter((item) => item.status === "New"));
+        setAppliedOpportunities(list.filter((item) => item.status === "Applied"));
         setWeekly((analyticsJson.weeks ?? []).filter(Boolean));
         setStatusBreakdown((analyticsJson.status ?? []).filter(Boolean));
         setMetrics({
@@ -245,25 +211,21 @@ export default function Home() {
     filters.status,
     filters.source,
     filters.q,
-    filters.tags,
-    filters.dateFrom,
-    filters.dateTo,
-    filters.followUpDue,
   ]);
 
   useEffect(() => {
-    const totalPages = Math.max(Math.ceil(applications.length / pageSize), 1);
+    const totalPages = Math.max(Math.ceil(opportunities.length / pageSize), 1);
     if (currentPage > totalPages) {
       setCurrentPage(totalPages);
     }
-  }, [applications.length, currentPage]);
+  }, [opportunities.length, currentPage]);
 
-  const handleInlineStatusChange = async (id: string, status: string) => {
+  const handleInlineStatusChange = async (id: string, status: OpportunityStatus) => {
     if (!id) return;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/applications/${id}`, {
+      const res = await fetch(`/api/opportunities/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
@@ -272,20 +234,26 @@ export default function Home() {
       if (!res.ok) {
         throw new Error(payload?.error || "Failed to update status.");
       }
-      const updated = payload?.data as Application | undefined;
+      const updated = payload?.data as Opportunity | undefined;
       if (!updated?.id) {
         throw new Error("Update failed to return a record.");
       }
-      setApplications((prev) =>
+      setOpportunities((prev) =>
         prev
           .filter(Boolean)
           .map((item) => (item.id === updated.id ? updated : item))
       );
-      setInQueue((prev) => {
+      setNewOpportunities((prev) => {
         const remaining = prev
           .filter(Boolean)
           .filter((item) => item.id !== updated.id);
-        return updated.status === "In Queue"
+        return updated.status === "New" ? [updated, ...remaining] : remaining;
+      });
+      setAppliedOpportunities((prev) => {
+        const remaining = prev
+          .filter(Boolean)
+          .filter((item) => item.id !== updated.id);
+        return updated.status === "Applied"
           ? [updated, ...remaining]
           : remaining;
       });
@@ -301,17 +269,13 @@ export default function Home() {
       status: "",
       source: "",
       q: "",
-      tags: "",
-      dateFrom: "",
-      dateTo: "",
-      followUpDue: false,
     });
   };
 
-  const totalPages = Math.max(Math.ceil(applications.length / pageSize), 1);
+  const totalPages = Math.max(Math.ceil(opportunities.length / pageSize), 1);
   const pageStart = (currentPage - 1) * pageSize;
   const pageEnd = pageStart + pageSize;
-  const pagedApplications = applications.slice(pageStart, pageEnd);
+  const pagedOpportunities = opportunities.slice(pageStart, pageEnd);
 
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(calendarMonth));
@@ -327,19 +291,16 @@ export default function Home() {
 
   const calendarCounts = useMemo(() => {
     const counts: Record<string, Record<string, number>> = {};
-    applications.forEach((app) => {
-      const status = app.status ?? "Unknown";
-      const isAppliedLike = status === "Applied" || status === "In Queue";
-      const baseDate = isAppliedLike
-        ? app.date_applied
-        : (app.updated_at as string | null | undefined) ?? app.date_applied;
+    opportunities.forEach((item) => {
+      const status = item.status ?? "Unknown";
+      const baseDate = item.created_at ?? item.updated_at;
       if (!baseDate) return;
       const key = baseDate.slice(0, 10);
       if (!counts[key]) counts[key] = {};
       counts[key][status] = (counts[key][status] ?? 0) + 1;
     });
     return counts;
-  }, [applications]);
+  }, [opportunities]);
 
   return (
     <div className="min-h-screen px-6 py-12 text-[15px] md:px-10">
@@ -390,18 +351,10 @@ export default function Home() {
               <div>
                 <h2 className="text-2xl font-semibold">Pipeline</h2>
                 <p className="text-sm text-[var(--muted)]">
-                  {applications.length} applications in view
+                  {opportunities.length} opportunities in view
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">
-                <button
-                  className="rounded-full border border-[var(--line)] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)] hover:border-[var(--accent-2)]"
-                  onClick={() =>
-                    (window.location.href = "/api/applications/export")
-                  }
-                >
-                  Export CSV
-                </button>
                 <button
                   className="rounded-full border border-[var(--line)] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)] hover:border-[var(--accent-2)]"
                   onClick={resetFilters}
@@ -420,14 +373,6 @@ export default function Home() {
                   setFilters((prev) => ({ ...prev, q: e.target.value }))
                 }
               />
-              <input
-                className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                placeholder="Tags (comma separated)"
-                value={filters.tags}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, tags: e.target.value }))
-                }
-              />
               <select
                 className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
                 value={filters.status}
@@ -436,7 +381,7 @@ export default function Home() {
                 }
               >
                 <option value="">All status</option>
-                {statusOptions.map((status) => (
+                {opportunityStatusOptions.map((status) => (
                   <option key={status} value={status}>
                     {status}
                   </option>
@@ -456,35 +401,6 @@ export default function Home() {
                   </option>
                 ))}
               </select>
-              <input
-                type="date"
-                className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={filters.dateFrom}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, dateFrom: e.target.value }))
-                }
-              />
-              <input
-                type="date"
-                className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
-                value={filters.dateTo}
-                onChange={(e) =>
-                  setFilters((prev) => ({ ...prev, dateTo: e.target.value }))
-                }
-              />
-              <label className="flex items-center gap-3 rounded-xl border border-[var(--line)] px-3 py-2 text-sm text-[var(--muted)]">
-                <input
-                  type="checkbox"
-                  checked={filters.followUpDue}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      followUpDue: e.target.checked,
-                    }))
-                  }
-                />
-                Follow-up due only
-              </label>
             </div>
 
             {error && (
@@ -498,65 +414,53 @@ export default function Home() {
                   <tr>
                     <th className="px-3">Company</th>
                     <th className="px-3">Role</th>
-                    <th className="px-3">Applied</th>
                     <th className="px-3">Status</th>
-                    <th className="px-3">Follow-up</th>
                     <th className="px-3">Source</th>
-                    <th className="px-3">Tags</th>
+                    <th className="px-3">Actual</th>
+                    <th className="px-3">Resume</th>
+                    <th className="px-3">Workspace</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {pagedApplications.map((item) => (
+                  {pagedOpportunities.map((item) => (
                     <tr
                       key={item.id}
                       className="cursor-pointer rounded-2xl border border-[var(--line)] bg-[var(--card)] shadow-sm hover:shadow-md"
-                      onClick={() => setSelected(item)}
                     >
                       <td className="px-3 py-3 font-medium">{item.company}</td>
-                      <td className="px-3 py-3">{item.role_title}</td>
-                      <td className="px-3 py-3">{formatShort(item.date_applied)}</td>
+                      <td className="px-3 py-3">{item.title}</td>
                       <td className="px-3 py-3">
                         <select
                           className="rounded-full border border-[var(--line)] bg-transparent px-3 py-1 text-xs"
                           value={item.status}
-                          onClick={(event) => event.stopPropagation()}
                           onChange={(event) => {
-                            event.stopPropagation();
                             handleInlineStatusChange(
                               item.id,
-                              event.target.value
+                              event.target.value as OpportunityStatus
                             );
                           }}
                         >
-                          {statusOptions.map((status) => (
+                          {opportunityStatusOptions.map((status) => (
                             <option key={status} value={status}>
                               {status}
                             </option>
                           ))}
                         </select>
                       </td>
+                      <td className="px-3 py-3">{item.source ?? "—"}</td>
                       <td className="px-3 py-3">
-                        {formatShort(item.follow_up_date)}
+                        {item.match_score_actual ?? "—"}
                       </td>
                       <td className="px-3 py-3">
-                        {item.source ?? "—"}
+                        {item.match_score_resume ?? "—"}
                       </td>
                       <td className="px-3 py-3">
-                        <div className="flex flex-wrap gap-2">
-                          {(item.tags ?? []).slice(0, 2).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] uppercase tracking-[0.18em]"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {(item.tags ?? []).length > 2 && (
-                            <span className="text-[10px] uppercase tracking-[0.18em] text-[var(--muted)]">
-                              +{(item.tags ?? []).length - 2}
-                            </span>
-                          )}
-                        </div>
+                        <a
+                          className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                          href={`/opportunities/${item.id}`}
+                        >
+                          Open
+                        </a>
                       </td>
                     </tr>
                   ))}
@@ -565,8 +469,8 @@ export default function Home() {
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
                 <span>
-                  Showing {applications.length ? pageStart + 1 : 0}-
-                  {Math.min(pageEnd, applications.length)} of {applications.length}
+                  Showing {opportunities.length ? pageStart + 1 : 0}-
+                  {Math.min(pageEnd, opportunities.length)} of {opportunities.length}
                 </span>
                 <div className="flex items-center gap-2">
                   <button
@@ -601,7 +505,7 @@ export default function Home() {
                 <div>
                   <h3 className="text-xl font-semibold">Application Calendar</h3>
                   <p className="mt-1 text-sm text-[var(--muted)]">
-                    Applied uses date applied. Other statuses use last updated date.
+                    Status activity is grouped by the opportunity created date.
                   </p>
                 </div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -627,14 +531,12 @@ export default function Home() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-3 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
-                {["Applied", "In Queue", "Interview", "Offer", "Rejected", "Withdrawn", "No Response"].map(
-                  (status) => (
-                    <span key={status} className="flex items-center gap-2">
-                      <span className={`h-2 w-2 rounded-full ${statusColor(status)}`} />
-                      {statusAbbrev(status)} = {status}
-                    </span>
-                  )
-                )}
+                {["New", "Shortlisted", "Applied", "Rejected"].map((status) => (
+                  <span key={status} className="flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${statusColor(status)}`} />
+                    {statusAbbrev(status)} = {status}
+                  </span>
+                ))}
               </div>
 
               <div className="mt-4 grid grid-cols-7 gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">
@@ -704,7 +606,7 @@ export default function Home() {
             <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
               <h3 className="text-xl font-semibold">Weekly Activity</h3>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                Last 8 weeks of applications
+                Last 8 weeks of activity
               </p>
               <div className="mt-5 flex items-end gap-3">
                 {weekly.map((point) => {
@@ -760,9 +662,9 @@ export default function Home() {
             <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
               <div className="flex items-center justify-between gap-4">
                 <div>
-                  <h3 className="text-xl font-semibold">In Queue</h3>
+                  <h3 className="text-xl font-semibold">New Opportunities</h3>
                   <p className="mt-1 text-sm text-[var(--muted)]">
-                    {inQueue.length} opportunities ready to apply
+                    {newOpportunities.length} items to review
                   </p>
                 </div>
                 <button
@@ -770,7 +672,7 @@ export default function Home() {
                   onClick={() =>
                     setFilters((prev) => ({
                       ...prev,
-                      status: "In Queue",
+                      status: "New",
                     }))
                   }
                 >
@@ -778,47 +680,44 @@ export default function Home() {
                 </button>
               </div>
               <div className="mt-4 flex flex-col gap-3">
-                {inQueue.slice(0, 6).map((item) => (
+                {newOpportunities.slice(0, 6).map((item) => (
                   <div
                     key={item.id}
                     className="rounded-2xl border border-[var(--line)] bg-white px-4 py-3"
                   >
                     <div className="text-sm font-semibold">{item.company}</div>
                     <div className="text-xs text-[var(--muted)]">
-                      {item.role_title}
+                      {item.title}
                     </div>
                   </div>
                 ))}
-                {!inQueue.length && (
+                {!newOpportunities.length && (
                   <div className="text-sm text-[var(--muted)]">
-                    No roles queued yet. Add new opportunities to get started.
+                    No new opportunities yet.
                   </div>
                 )}
               </div>
             </div>
             <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
-              <h3 className="text-xl font-semibold">Follow-up Due</h3>
+              <h3 className="text-xl font-semibold">Applied Opportunities</h3>
               <p className="mt-1 text-sm text-[var(--muted)]">
-                {followUps.length} items need a check-in
+                {appliedOpportunities.length} items submitted
               </p>
               <div className="mt-4 flex flex-col gap-3">
-                {followUps.slice(0, 6).map((item) => (
+                {appliedOpportunities.slice(0, 6).map((item) => (
                   <div
                     key={item.id}
                     className="rounded-2xl border border-[var(--line)] bg-white px-4 py-3"
                   >
                     <div className="text-sm font-semibold">{item.company}</div>
                     <div className="text-xs text-[var(--muted)]">
-                      {item.role_title}
-                    </div>
-                    <div className="mt-2 text-xs text-[var(--accent-2)]">
-                      Follow up by {formatLong(item.follow_up_date)}
+                      {item.title}
                     </div>
                   </div>
                 ))}
-                {!followUps.length && (
+                {!appliedOpportunities.length && (
                   <div className="text-sm text-[var(--muted)]">
-                    Nothing due yet. Keep applying.
+                    No applied opportunities yet.
                   </div>
                 )}
               </div>
