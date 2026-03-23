@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const bucketName = "opportunity-documents";
 
@@ -13,6 +14,11 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").slice(-2)[0];
@@ -29,6 +35,7 @@ export async function GET(
     .from("opportunity_documents")
     .select("*")
     .eq("opportunity_id", opportunityId)
+    .eq("owner_id", userId)
     .order("tag", { ascending: true })
     .order("is_latest", { ascending: false })
     .order("version", { ascending: false })
@@ -45,6 +52,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").slice(-2)[0];
@@ -106,11 +118,13 @@ export async function POST(
     .from("opportunity_documents")
     .update({ is_latest: false })
     .eq("opportunity_id", opportunityId)
+    .eq("owner_id", userId)
     .eq("tag", tag);
 
   const fileUrl = toPublicUrl(path);
   const now = new Date().toISOString();
   const payload = {
+    owner_id: userId,
     opportunity_id: opportunityId,
     name: originalName,
     tag,

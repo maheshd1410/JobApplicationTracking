@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const opportunityStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -15,7 +16,12 @@ function getWeekStart(dateStr: string) {
   return toDateString(date);
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const today = new Date();
   const start = new Date();
   start.setUTCDate(start.getUTCDate() - 56);
@@ -23,6 +29,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("opportunities")
     .select("created_at,status")
+    .eq("owner_id", userId)
     .gte("created_at", toDateString(start));
 
   if (error) {

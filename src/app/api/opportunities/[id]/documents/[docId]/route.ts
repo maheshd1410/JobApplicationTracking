@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const bucketName = "opportunity-documents";
 
@@ -7,6 +8,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string; docId: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -29,6 +35,7 @@ export async function PATCH(
     .from("opportunity_documents")
     .select("id, opportunity_id, tag, version")
     .eq("id", docId)
+    .eq("owner_id", userId)
     .single();
 
   if (fetchError || !existing) {
@@ -58,18 +65,21 @@ export async function PATCH(
       .from("opportunity_documents")
       .update({ is_latest: false })
       .eq("opportunity_id", existing.opportunity_id)
+      .eq("owner_id", userId)
       .eq("tag", newTag);
 
     await supabase
       .from("opportunity_documents")
       .update({ is_latest: false })
       .eq("opportunity_id", existing.opportunity_id)
+      .eq("owner_id", userId)
       .eq("tag", existing.tag);
 
     const { data: previousLatest } = await supabase
       .from("opportunity_documents")
       .select("id")
       .eq("opportunity_id", existing.opportunity_id)
+      .eq("owner_id", userId)
       .eq("tag", existing.tag)
       .order("version", { ascending: false })
       .limit(1)
@@ -79,7 +89,8 @@ export async function PATCH(
       await supabase
         .from("opportunity_documents")
         .update({ is_latest: true })
-        .eq("id", previousLatest.id);
+        .eq("id", previousLatest.id)
+        .eq("owner_id", userId);
     }
 
     nextIsLatest = true;
@@ -96,6 +107,7 @@ export async function PATCH(
       updated_at: new Date().toISOString(),
     })
     .eq("id", docId)
+    .eq("owner_id", userId)
     .select("*")
     .single();
 
@@ -113,6 +125,11 @@ export async function DELETE(
   request: Request,
   context: { params: Promise<{ id: string; docId: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -126,6 +143,7 @@ export async function DELETE(
     .from("opportunity_documents")
     .select("file_path")
     .eq("id", docId)
+    .eq("owner_id", userId)
     .single();
 
   if (fetchError || !doc) {
@@ -146,7 +164,8 @@ export async function DELETE(
   const { error: deleteError } = await supabase
     .from("opportunity_documents")
     .delete()
-    .eq("id", docId);
+    .eq("id", docId)
+    .eq("owner_id", userId);
 
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });

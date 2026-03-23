@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const date = url.searchParams.get("date");
 
@@ -16,6 +22,7 @@ export async function GET(request: Request) {
     .from("daily_inventory")
     .select("id, inventory_date")
     .eq("inventory_date", date)
+    .eq("owner_id", userId)
     .single();
 
   if (error || !inventory) {
@@ -28,6 +35,7 @@ export async function GET(request: Request) {
       "id, decision, notes, opportunity:opportunity_id (id, title, company, location, url, source, status)"
     )
     .eq("inventory_id", inventory.id)
+    .eq("owner_id", userId)
     .order("created_at", { ascending: true });
 
   if (itemsError) {
@@ -38,6 +46,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const date = url.searchParams.get("date");
   const limit = Number(url.searchParams.get("limit") ?? 20);
@@ -53,6 +66,7 @@ export async function POST(request: Request) {
     .from("daily_inventory")
     .select("id")
     .eq("inventory_date", date)
+    .eq("owner_id", userId)
     .single();
 
   if (existing?.id) {
@@ -61,7 +75,7 @@ export async function POST(request: Request) {
 
   const { data: inventory, error: inventoryError } = await supabase
     .from("daily_inventory")
-    .insert({ inventory_date: date })
+    .insert({ inventory_date: date, owner_id: userId })
     .select("id, inventory_date")
     .single();
 
@@ -76,6 +90,7 @@ export async function POST(request: Request) {
     .from("opportunities")
     .select("id")
     .eq("status", "New")
+    .eq("owner_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -87,6 +102,7 @@ export async function POST(request: Request) {
   }
 
   const itemsPayload = (opportunities ?? []).map((opp) => ({
+    owner_id: userId,
     inventory_id: inventory.id,
     opportunity_id: opp.id,
     decision: "Pending",

@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const date = url.searchParams.get("date");
 
@@ -19,6 +25,7 @@ export async function GET(request: Request) {
   const { count: appliedTodayCount, error: appliedError } = await supabase
     .from("opportunities")
     .select("id", { count: "exact", head: true })
+    .eq("owner_id", userId)
     .gte("created_at", start.toISOString())
     .lt("created_at", end.toISOString());
 
@@ -28,7 +35,8 @@ export async function GET(request: Request) {
 
   const { count: totalCount, error: totalError } = await supabase
     .from("opportunities")
-    .select("id", { count: "exact", head: true });
+    .select("id", { count: "exact", head: true })
+    .eq("owner_id", userId);
 
   if (totalError) {
     return NextResponse.json({ error: totalError.message }, { status: 500 });

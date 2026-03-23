@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/authFetch";
 
 type OpportunityStatus = "New" | "Shortlisted" | "Applied" | "Rejected";
 
@@ -63,7 +64,7 @@ export default function OpportunitiesPage() {
   useEffect(() => {
     const loadGmailStatus = async () => {
       try {
-        const res = await fetch("/api/gmail/status", { cache: "no-store" });
+        const res = await authFetch("/api/gmail/status", { cache: "no-store" });
         const payload = await res.json();
         if (res.ok) {
           setGmailConnected(Boolean(payload.connected));
@@ -88,7 +89,7 @@ export default function OpportunitiesPage() {
         if (filters.q) params.set("q", filters.q);
         if (sourceFilter) params.set("source", sourceFilter);
 
-        const res = await fetch(`/api/opportunities?${params.toString()}`, {
+        const res = await authFetch(`/api/opportunities?${params.toString()}`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("Failed to load opportunities.");
@@ -114,7 +115,7 @@ export default function OpportunitiesPage() {
     setSyncing(true);
     setError(null);
     try {
-      const res = await fetch("/api/gmail/sync", { method: "POST" });
+      const res = await authFetch("/api/gmail/sync", { method: "POST" });
       const payload = await res.json();
       if (!res.ok) {
         throw new Error(payload?.error || "Failed to sync Gmail.");
@@ -142,7 +143,7 @@ export default function OpportunitiesPage() {
           ? Number(form.match_score_resume)
           : null,
       };
-      const res = await fetch(
+      const res = await authFetch(
         editing ? `/api/opportunities/${editing.id}` : "/api/opportunities",
         {
           method: editing ? "PATCH" : "POST",
@@ -179,7 +180,7 @@ export default function OpportunitiesPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/opportunities/${id}`, {
+      const res = await authFetch(`/api/opportunities/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

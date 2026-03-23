@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/authFetch";
 
 const decisionOptions = ["Pending", "Approved", "Rejected"] as const;
 
@@ -37,7 +38,7 @@ export default function InventoryPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/inventory?date=${targetDate}`, {
+      const res = await authFetch(`/api/inventory?date=${targetDate}`, {
         cache: "no-store",
       });
       const payload = await res.json();
@@ -67,7 +68,7 @@ export default function InventoryPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/inventory?date=${date}&limit=20`, {
+      const res = await authFetch(`/api/inventory?date=${date}&limit=20`, {
         method: "POST",
       });
       const payload = await res.json();
@@ -86,7 +87,7 @@ export default function InventoryPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/inventory/items/${itemId}`, {
+      const res = await authFetch(`/api/inventory/items/${itemId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 import { statusOptions } from "@/lib/types";
 
 function isValidStatus(status: string | null) {
@@ -11,6 +12,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -75,6 +81,7 @@ export async function PATCH(
       .from("applications")
       .select("*")
       .eq("id", id)
+      .eq("owner_id", userId)
       .single();
 
     if (error || !existing) {
@@ -93,6 +100,7 @@ export async function PATCH(
     .from("applications")
     .update(updates)
     .eq("id", id)
+    .eq("owner_id", userId)
     .select("*")
     .single();
 

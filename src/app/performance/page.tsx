@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/authFetch";
 
 type PerformanceEntry = {
   id: string;
@@ -37,7 +38,7 @@ export default function PerformancePage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/profile-performance", {
+      const res = await authFetch("/api/profile-performance", {
         cache: "no-store",
       });
       const payload = await res.json();
@@ -72,7 +73,7 @@ export default function PerformancePage() {
         data.append("screenshot", form.screenshot);
       }
 
-      const res = await fetch("/api/profile-performance", {
+      const res = await authFetch("/api/profile-performance", {
         method: "POST",
         body: data,
       });

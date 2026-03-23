@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const allowedStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -11,12 +12,17 @@ function isValidStatus(status: string | null) {
 }
 
 export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const source = url.searchParams.get("source");
   const q = url.searchParams.get("q");
 
-  let query = supabase.from("opportunities").select("*");
+  let query = supabase.from("opportunities").select("*").eq("owner_id", userId);
 
   if (isValidStatus(status)) {
     query = query.eq("status", status as string);
@@ -40,6 +46,11 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const body = await request.json();
 
   const title = String(body.title ?? "").trim();
@@ -55,6 +66,7 @@ export async function POST(request: Request) {
 
   const now = new Date().toISOString();
   const payload = {
+    owner_id: userId,
     title,
     company,
     location: body.location ?? null,
@@ -80,6 +92,7 @@ export async function POST(request: Request) {
   }
 
   await supabase.from("opportunity_events").insert({
+    owner_id: userId,
     opportunity_id: data.id,
     status: data.status,
     event_type: "status",

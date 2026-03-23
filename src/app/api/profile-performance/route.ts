@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const bucketName = "naukri-screenshots";
 
@@ -9,10 +10,16 @@ function toPublicUrl(path: string) {
   return `${base}/storage/v1/object/public/${bucketName}/${path}`;
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const { data, error } = await supabase
     .from("profile_performance")
     .select("*")
+    .eq("owner_id", userId)
     .order("entry_date", { ascending: false })
     .order("created_at", { ascending: false });
 
@@ -24,6 +31,11 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const formData = await request.formData();
 
   const entryDate = String(formData.get("entry_date") ?? "").trim();
@@ -49,7 +61,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(arrayBuffer);
     const extension = blob.type === "image/png" ? "png" : "jpg";
     const filename = `naukri_${entryDate}_${Date.now()}.${extension}`;
-    const path = `${entryDate}/${filename}`;
+    const path = `${userId}/${entryDate}/${filename}`;
 
     const { error: uploadError } = await supabase.storage
       .from(bucketName)
@@ -67,6 +79,7 @@ export async function POST(request: Request) {
   }
 
   const payload = {
+    owner_id: userId,
     entry_date: entryDate,
     impressions: impressionsRaw ? Number(impressionsRaw) : null,
     searches: searchesRaw ? Number(searchesRaw) : null,

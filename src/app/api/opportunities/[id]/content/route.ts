@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const allowedTypes = [
   "JD",
@@ -20,6 +21,11 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").slice(-2)[0];
@@ -37,6 +43,7 @@ export async function GET(
     .from("opportunity_content")
     .select("*")
     .eq("opportunity_id", opportunityId)
+    .eq("owner_id", userId)
     .order("created_at", { ascending: false });
 
   if (isValidType(type)) {
@@ -56,6 +63,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").slice(-2)[0];
@@ -82,6 +94,7 @@ export async function POST(
 
   const now = new Date().toISOString();
   const payload = {
+    owner_id: userId,
     opportunity_id: opportunityId,
     type,
     title,

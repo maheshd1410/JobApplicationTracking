@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const bucketName = "cv-photos";
 
@@ -19,6 +20,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const opportunityId = getOpportunityId(request, params?.id);
 
@@ -60,6 +66,7 @@ export async function POST(
     .from("opportunity_cvs")
     .upsert(
       {
+        owner_id: userId,
         opportunity_id: opportunityId,
         photo_path: path,
         photo_url: fileUrl,

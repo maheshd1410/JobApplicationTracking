@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 import { statusOptions } from "@/lib/types";
 
 function isValidStatus(status: string | null) {
@@ -8,6 +9,11 @@ function isValidStatus(status: string | null) {
 }
 
 export async function GET(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const source = url.searchParams.get("source");
@@ -18,7 +24,7 @@ export async function GET(request: Request) {
   const followUpDate = url.searchParams.get("followUpDate");
   const tagsParam = url.searchParams.get("tags");
 
-  let query = supabase.from("applications").select("*");
+  let query = supabase.from("applications").select("*").eq("owner_id", userId);
 
   if (isValidStatus(status)) {
     query = query.eq("status", status as string);
@@ -75,6 +81,11 @@ function addDays(dateStr: string, days: number) {
 }
 
 export async function POST(request: Request) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const body = await request.json();
 
   const company = String(body.company ?? "").trim();
@@ -100,6 +111,7 @@ export async function POST(request: Request) {
       .select("*")
       .ilike("company", company)
       .ilike("role_title", roleTitle)
+      .eq("owner_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -127,6 +139,7 @@ export async function POST(request: Request) {
       .select("*")
       .ilike("company", `%${company}%`)
       .ilike("role_title", `%${roleTitle}%`)
+      .eq("owner_id", userId)
       .order("created_at", { ascending: false })
       .limit(1);
 
@@ -156,6 +169,7 @@ export async function POST(request: Request) {
     : addDays(dateApplied, 7);
 
   const payload = {
+    owner_id: userId,
     company,
     role_title: roleTitle,
     location: body.location ?? null,

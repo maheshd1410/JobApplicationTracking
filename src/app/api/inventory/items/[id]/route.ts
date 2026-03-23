@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -38,6 +44,7 @@ export async function PATCH(
     .from("inventory_items")
     .update(updates)
     .eq("id", id)
+    .eq("owner_id", userId)
     .select(
       "id, decision, notes, opportunity:opportunity_id (id, title, company, location, url, source, status)"
     )

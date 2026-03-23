@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 import { CvData, renderCvPdfBuffer } from "@/lib/cvTemplate";
 
 const bucketName = "cv-pdfs";
@@ -20,6 +21,11 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const opportunityId = getOpportunityId(request, params?.id);
 
@@ -34,6 +40,7 @@ export async function POST(
     .from("opportunity_cvs")
     .select("*")
     .eq("opportunity_id", opportunityId)
+    .eq("owner_id", userId)
     .maybeSingle();
 
   if (error || !cvRow) {
@@ -69,6 +76,7 @@ export async function POST(
     .from("opportunity_cvs")
     .update({ pdf_path: filePath, pdf_url: pdfUrl, updated_at: now })
     .eq("opportunity_id", opportunityId)
+    .eq("owner_id", userId)
     .select("*")
     .single();
 

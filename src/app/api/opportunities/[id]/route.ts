@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 const allowedStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -14,6 +15,11 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -57,6 +63,7 @@ export async function PATCH(
       .from("opportunities")
       .select("status")
       .eq("id", id)
+      .eq("owner_id", userId)
       .single();
     if (existing?.status !== status) {
       statusChanged = status;
@@ -83,6 +90,7 @@ export async function PATCH(
       .from("opportunities")
       .select("*")
       .eq("id", id)
+      .eq("owner_id", userId)
       .single();
 
     if (error || !existing) {
@@ -101,6 +109,7 @@ export async function PATCH(
     .from("opportunities")
     .update(updates)
     .eq("id", id)
+    .eq("owner_id", userId)
     .select("*")
     .single();
 
@@ -113,6 +122,7 @@ export async function PATCH(
 
   if (statusChanged) {
     await supabase.from("opportunity_events").insert({
+      owner_id: userId,
       opportunity_id: data.id,
       status: statusChanged,
       event_type: "status",
@@ -127,6 +137,11 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackId = url.pathname.split("/").pop();
@@ -143,6 +158,7 @@ export async function GET(
     .from("opportunities")
     .select("*")
     .eq("id", id)
+    .eq("owner_id", userId)
     .single();
 
   if (error || !data) {

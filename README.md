@@ -31,6 +31,8 @@ Create a `.env.local` file with:
 ```bash
 SUPABASE_URL=your-supabase-url
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=https://your-domain/api/google/callback
@@ -53,6 +55,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists applications (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   company text not null,
   role_title text not null,
   location text,
@@ -69,6 +72,7 @@ create table if not exists applications (
 
 create table if not exists opportunities (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   title text not null,
   company text not null,
   location text,
@@ -85,6 +89,7 @@ create table if not exists opportunities (
 
 create table if not exists opportunity_content (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   type text not null,
   title text not null,
@@ -95,6 +100,7 @@ create table if not exists opportunity_content (
 
 create table if not exists opportunity_documents (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   name text not null,
   tag text not null default 'Other',
@@ -131,12 +137,14 @@ create table if not exists opportunity_events (
 
 create table if not exists daily_inventory (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   inventory_date date not null unique,
   created_at timestamptz not null default now()
 );
 
 create table if not exists inventory_items (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   inventory_id uuid not null references daily_inventory(id) on delete cascade,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   decision text not null default 'Pending',
@@ -155,6 +163,7 @@ create table if not exists audit_log (
 
 create table if not exists profile_performance (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   entry_date date not null,
   impressions integer,
   searches integer,
@@ -167,6 +176,7 @@ create table if not exists profile_performance (
 
 create table if not exists integrations (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   provider text not null,
   email text,
   access_token text,
@@ -211,8 +221,8 @@ create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
 
 -- Backfill opportunity events for existing rows (one event per opportunity)
-insert into opportunity_events (opportunity_id, status, event_type, created_at)
-select id, status, 'status', created_at
+insert into opportunity_events (owner_id, opportunity_id, status, event_type, created_at)
+select owner_id, id, status, 'status', created_at
 from opportunities
 where not exists (
   select 1 from opportunity_events e where e.opportunity_id = opportunities.id
@@ -275,6 +285,7 @@ create index if not exists idx_opportunity_documents_tag_latest
 
 create table if not exists opportunity_cvs (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   data jsonb not null default '{}'::jsonb,
   photo_path text,
@@ -290,6 +301,7 @@ create index if not exists idx_opportunity_cvs_opportunity
 
 create table if not exists opportunity_events (
   id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   status text not null,
   event_type text not null default 'status',
@@ -407,6 +419,49 @@ We store passport-size photos for CV rendering there.
 
 Create a public bucket named `cv-pdfs` in Supabase Storage.
 We store generated CV PDFs there.
+
+## Multi-User Setup (Phase 1)
+
+Add `owner_id` to all user-owned tables:
+
+```sql
+alter table opportunities add column if not exists owner_id uuid;
+alter table opportunity_content add column if not exists owner_id uuid;
+alter table opportunity_documents add column if not exists owner_id uuid;
+alter table opportunity_cvs add column if not exists owner_id uuid;
+alter table opportunity_events add column if not exists owner_id uuid;
+alter table applications add column if not exists owner_id uuid;
+alter table daily_inventory add column if not exists owner_id uuid;
+alter table inventory_items add column if not exists owner_id uuid;
+alter table profile_performance add column if not exists owner_id uuid;
+alter table integrations add column if not exists owner_id uuid;
+```
+
+Backfill existing rows for your user (replace with your email):
+
+```sql
+update opportunities
+set owner_id = (select id from auth.users where email = 'you@example.com')
+where owner_id is null;
+```
+
+Enable Row Level Security and add policies (repeat for each table):
+
+```sql
+alter table opportunities enable row level security;
+
+create policy "owner_select" on opportunities
+  for select using (owner_id = auth.uid());
+
+create policy "owner_insert" on opportunities
+  for insert with check (owner_id = auth.uid());
+
+create policy "owner_update" on opportunities
+  for update using (owner_id = auth.uid());
+
+create policy "owner_delete" on opportunities
+  for delete using (owner_id = auth.uid());
+```
 
 ## Deployment (Vercel)
 

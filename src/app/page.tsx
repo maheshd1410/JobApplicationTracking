@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { authFetch } from "@/lib/authFetch";
 
 const dailyTarget = 20;
 
@@ -170,11 +171,11 @@ export default function Home() {
         if (filters.source) params.set("source", filters.source);
         if (filters.q) params.set("q", filters.q);
         const [listRes, analyticsRes, metricsRes] = await Promise.all([
-          fetch(`/api/opportunities?${params.toString()}`, {
+          authFetch(`/api/opportunities?${params.toString()}`, {
             cache: "no-store",
           }),
-          fetch(`/api/analytics/weekly`, { cache: "no-store" }),
-          fetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
+          authFetch(`/api/analytics/weekly`, { cache: "no-store" }),
+          authFetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
         ]);
 
         if (!listRes.ok || !analyticsRes.ok || !metricsRes.ok) {
@@ -221,7 +222,7 @@ export default function Home() {
         const end = endOfMonth(calendarMonth);
         const from = toDateKey(start);
         const to = toDateKey(end);
-        const res = await fetch(
+        const res = await authFetch(
           `/api/opportunities/events?from=${from}&to=${to}`,
           { cache: "no-store" }
         );
@@ -266,7 +267,7 @@ export default function Home() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/opportunities/${id}`, {
+      const res = await authFetch(`/api/opportunities/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),

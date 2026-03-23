@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { authFetch } from "@/lib/authFetch";
 
 const tabs = [
   { key: "JD", label: "Job Description" },
@@ -147,7 +148,7 @@ export default function OpportunityDetailPage() {
   const loadOpportunity = async () => {
     if (!opportunityId) return;
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}`, {
         cache: "no-store",
       });
       const payload = await res.json();
@@ -166,7 +167,7 @@ export default function OpportunityDetailPage() {
     setError(null);
     try {
       if (type === "DOCS") {
-        const res = await fetch(`/api/opportunities/${opportunityId}/documents`, {
+        const res = await authFetch(`/api/opportunities/${opportunityId}/documents`, {
           cache: "no-store",
         });
         const payload = await res.json();
@@ -177,7 +178,7 @@ export default function OpportunityDetailPage() {
         return;
       }
       if (type === "CV") {
-        const res = await fetch(`/api/opportunities/${opportunityId}/cv`, {
+        const res = await authFetch(`/api/opportunities/${opportunityId}/cv`, {
           cache: "no-store",
         });
         const payload = await res.json();
@@ -194,7 +195,7 @@ export default function OpportunityDetailPage() {
         return;
       }
 
-      const res = await fetch(
+      const res = await authFetch(
         `/api/opportunities/${opportunityId}/content?type=${type}`,
         { cache: "no-store" }
       );
@@ -247,7 +248,7 @@ export default function OpportunityDetailPage() {
     setError(null);
     try {
       if (editing) {
-        const res = await fetch(
+        const res = await authFetch(
           `/api/opportunities/${opportunityId}/content/${editing.id}`,
           {
             method: "PATCH",
@@ -268,7 +269,7 @@ export default function OpportunityDetailPage() {
         setEditing(null);
         setForm({ title: "", content: "" });
       } else {
-        const res = await fetch(`/api/opportunities/${opportunityId}/content`, {
+        const res = await authFetch(`/api/opportunities/${opportunityId}/content`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -304,7 +305,7 @@ export default function OpportunityDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/opportunities/${opportunityId}/content/${item.id}`,
         { method: "DELETE" }
       );
@@ -347,7 +348,7 @@ export default function OpportunityDetailPage() {
       if (docNote.trim()) {
         data.append("note", docNote.trim());
       }
-      const res = await fetch(`/api/opportunities/${opportunityId}/documents`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}/documents`, {
         method: "POST",
         body: data,
       });
@@ -376,7 +377,7 @@ export default function OpportunityDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/opportunities/${opportunityId}/documents/${docEditing.id}`,
         {
           method: "PATCH",
@@ -414,7 +415,7 @@ export default function OpportunityDetailPage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
+      const res = await authFetch(
         `/api/opportunities/${opportunityId}/documents/${doc.id}`,
         { method: "DELETE" }
       );
@@ -496,7 +497,7 @@ export default function OpportunityDetailPage() {
     setCvSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}/cv`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}/cv`, {
         method: cvRow ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ data: cvData }),
@@ -527,7 +528,7 @@ export default function OpportunityDetailPage() {
     try {
       const data = new FormData();
       data.append("file", cvPhotoFile);
-      const res = await fetch(`/api/opportunities/${opportunityId}/cv/photo`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}/cv/photo`, {
         method: "POST",
         body: data,
       });
@@ -552,7 +553,7 @@ export default function OpportunityDetailPage() {
     setCvPdfGenerating(true);
     setError(null);
     try {
-      const res = await fetch(`/api/opportunities/${opportunityId}/cv/pdf`, {
+      const res = await authFetch(`/api/opportunities/${opportunityId}/cv/pdf`, {
         method: "POST",
       });
       const payload = await res.json();

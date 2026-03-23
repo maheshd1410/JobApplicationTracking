@@ -1,10 +1,16 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireUserId } from "@/lib/auth";
 
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string; contentId: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(request.url);
   const fallbackContentId = url.pathname.split("/").pop();
@@ -40,6 +46,7 @@ export async function PATCH(
     .from("opportunity_content")
     .update(updates)
     .eq("id", contentId)
+    .eq("owner_id", userId)
     .select("*")
     .single();
 
@@ -57,6 +64,11 @@ export async function DELETE(
   _request: Request,
   context: { params: Promise<{ id: string; contentId: string }> }
 ) {
+  const { userId, error: authError } = await requireUserId(_request);
+  if (authError || !userId) {
+    return NextResponse.json({ error: authError }, { status: 401 });
+  }
+
   const params = await context.params;
   const url = new URL(_request.url);
   const fallbackContentId = url.pathname.split("/").pop();
@@ -72,7 +84,8 @@ export async function DELETE(
   const { error } = await supabase
     .from("opportunity_content")
     .delete()
-    .eq("id", contentId);
+    .eq("id", contentId)
+    .eq("owner_id", userId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
