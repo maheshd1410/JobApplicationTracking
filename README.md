@@ -73,6 +73,7 @@ create table if not exists applications (
 create table if not exists opportunities (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null,
+  workspace_id uuid,
   title text not null,
   company text not null,
   location text,
@@ -302,6 +303,7 @@ create index if not exists idx_opportunity_cvs_opportunity
 create table if not exists opportunity_events (
   id uuid primary key default gen_random_uuid(),
   owner_id uuid not null,
+  workspace_id uuid,
   opportunity_id uuid not null references opportunities(id) on delete cascade,
   status text not null,
   event_type text not null default 'status',
@@ -437,12 +439,55 @@ alter table profile_performance add column if not exists owner_id uuid;
 alter table integrations add column if not exists owner_id uuid;
 ```
 
+Phase 2 (Shared Opportunities only):
+
+```sql
+create table if not exists workspaces (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists workspace_members (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  role text not null default 'member',
+  created_at timestamptz not null default now()
+);
+
+alter table opportunities add column if not exists workspace_id uuid;
+alter table opportunity_events add column if not exists workspace_id uuid;
+```
+
 Backfill existing rows for your user (replace with your email):
 
 ```sql
 update opportunities
 set owner_id = (select id from auth.users where email = 'you@example.com')
 where owner_id is null;
+```
+
+Set up a shared workspace for opportunities (example):
+
+```sql
+-- 1) Create workspace
+insert into workspaces (name) values ('Family Workspace') returning id;
+
+-- 2) Add both members
+insert into workspace_members (workspace_id, user_id, role)
+values
+  ('YOUR_WORKSPACE_ID', (select id from auth.users where email = 'you@example.com'), 'owner'),
+  ('YOUR_WORKSPACE_ID', (select id from auth.users where email = 'wife@example.com'), 'member');
+
+-- 3) Backfill workspace_id for opportunities + events
+update opportunities
+set workspace_id = 'YOUR_WORKSPACE_ID'
+where workspace_id is null;
+
+update opportunity_events
+set workspace_id = 'YOUR_WORKSPACE_ID'
+where workspace_id is null;
 ```
 
 Enable Row Level Security and add policies (repeat for each table):
@@ -461,6 +506,48 @@ create policy "owner_update" on opportunities
 
 create policy "owner_delete" on opportunities
   for delete using (owner_id = auth.uid());
+```
+
+Shared opportunities policies (workspace-based):
+
+```sql
+alter table opportunities enable row level security;
+
+create policy "workspace_select" on opportunities
+  for select using (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = opportunities.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
+
+create policy "workspace_insert" on opportunities
+  for insert with check (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = opportunities.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
+
+create policy "workspace_update" on opportunities
+  for update using (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = opportunities.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
+
+create policy "workspace_delete" on opportunities
+  for delete using (
+    exists (
+      select 1 from workspace_members wm
+      where wm.workspace_id = opportunities.workspace_id
+        and wm.user_id = auth.uid()
+    )
+  );
 ```
 
 ## Deployment (Vercel)

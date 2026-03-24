@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireUserId } from "@/lib/auth";
+import { getPrimaryWorkspaceId, requireUserId } from "@/lib/auth";
 
 const allowedStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -18,6 +18,12 @@ export async function PATCH(
   const { userId, error: authError } = await requireUserId(request);
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
+  }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
   }
 
   const params = await context.params;
@@ -63,7 +69,7 @@ export async function PATCH(
       .from("opportunities")
       .select("status")
       .eq("id", id)
-      .eq("owner_id", userId)
+      .eq("workspace_id", workspaceId)
       .single();
     if (existing?.status !== status) {
       statusChanged = status;
@@ -109,7 +115,7 @@ export async function PATCH(
     .from("opportunities")
     .update(updates)
     .eq("id", id)
-    .eq("owner_id", userId)
+    .eq("workspace_id", workspaceId)
     .select("*")
     .single();
 
@@ -123,6 +129,7 @@ export async function PATCH(
   if (statusChanged) {
     await supabase.from("opportunity_events").insert({
       owner_id: userId,
+      workspace_id: workspaceId,
       opportunity_id: data.id,
       status: statusChanged,
       event_type: "status",
@@ -141,6 +148,12 @@ export async function GET(
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
   }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
+  }
 
   const params = await context.params;
   const url = new URL(request.url);
@@ -158,7 +171,7 @@ export async function GET(
     .from("opportunities")
     .select("*")
     .eq("id", id)
-    .eq("owner_id", userId)
+    .eq("workspace_id", workspaceId)
     .single();
 
   if (error || !data) {

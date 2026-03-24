@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireUserId } from "@/lib/auth";
+import { getPrimaryWorkspaceId, requireUserId } from "@/lib/auth";
 
 const allowedStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -16,13 +16,22 @@ export async function GET(request: Request) {
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
   }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
+  }
 
   const url = new URL(request.url);
   const status = url.searchParams.get("status");
   const source = url.searchParams.get("source");
   const q = url.searchParams.get("q");
 
-  let query = supabase.from("opportunities").select("*").eq("owner_id", userId);
+  let query = supabase
+    .from("opportunities")
+    .select("*")
+    .eq("workspace_id", workspaceId);
 
   if (isValidStatus(status)) {
     query = query.eq("status", status as string);
@@ -50,6 +59,12 @@ export async function POST(request: Request) {
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
   }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
+  }
 
   const body = await request.json();
 
@@ -67,6 +82,7 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   const payload = {
     owner_id: userId,
+    workspace_id: workspaceId,
     title,
     company,
     location: body.location ?? null,
@@ -93,6 +109,7 @@ export async function POST(request: Request) {
 
   await supabase.from("opportunity_events").insert({
     owner_id: userId,
+    workspace_id: workspaceId,
     opportunity_id: data.id,
     status: data.status,
     event_type: "status",

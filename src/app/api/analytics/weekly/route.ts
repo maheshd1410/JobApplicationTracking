@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireUserId } from "@/lib/auth";
+import { getPrimaryWorkspaceId, requireUserId } from "@/lib/auth";
 
 const opportunityStatuses = ["New", "Shortlisted", "Applied", "Rejected"] as const;
 
@@ -21,6 +21,12 @@ export async function GET(request: Request) {
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
   }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
+  }
 
   const today = new Date();
   const start = new Date();
@@ -29,7 +35,7 @@ export async function GET(request: Request) {
   const { data, error } = await supabase
     .from("opportunities")
     .select("created_at,status")
-    .eq("owner_id", userId)
+    .eq("workspace_id", workspaceId)
     .gte("created_at", toDateString(start));
 
   if (error) {

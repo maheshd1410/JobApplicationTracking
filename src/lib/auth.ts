@@ -17,3 +17,19 @@ export async function requireUserId(request: Request) {
 
   return { userId: data.user.id, error: null };
 }
+
+export async function getPrimaryWorkspaceId(userId: string) {
+  const { data, error } = await supabase
+    .from("workspace_members")
+    .select("workspace_id")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.workspace_id) {
+    return { workspaceId: null, error: error?.message ?? "No workspace found." };
+  }
+
+  return { workspaceId: data.workspace_id as string, error: null };
+}

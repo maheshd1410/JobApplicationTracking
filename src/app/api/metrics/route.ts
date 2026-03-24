@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { requireUserId } from "@/lib/auth";
+import { getPrimaryWorkspaceId, requireUserId } from "@/lib/auth";
 
 export async function GET(request: Request) {
   const { userId, error: authError } = await requireUserId(request);
   if (authError || !userId) {
     return NextResponse.json({ error: authError }, { status: 401 });
+  }
+  const { workspaceId, error: workspaceError } = await getPrimaryWorkspaceId(
+    userId
+  );
+  if (workspaceError || !workspaceId) {
+    return NextResponse.json({ error: workspaceError }, { status: 401 });
   }
 
   const url = new URL(request.url);
@@ -25,7 +31,7 @@ export async function GET(request: Request) {
   const { count: appliedTodayCount, error: appliedError } = await supabase
     .from("opportunities")
     .select("id", { count: "exact", head: true })
-    .eq("owner_id", userId)
+    .eq("workspace_id", workspaceId)
     .gte("created_at", start.toISOString())
     .lt("created_at", end.toISOString());
 
@@ -36,7 +42,7 @@ export async function GET(request: Request) {
   const { count: totalCount, error: totalError } = await supabase
     .from("opportunities")
     .select("id", { count: "exact", head: true })
-    .eq("owner_id", userId);
+    .eq("workspace_id", workspaceId);
 
   if (totalError) {
     return NextResponse.json({ error: totalError.message }, { status: 500 });
