@@ -25,6 +25,11 @@ type OpportunityEvent = {
   event_type: string;
   created_at: string;
 };
+type AppliedByUser = {
+  user_id: string;
+  email: string | null;
+  count: number;
+};
 
 type OpportunityStatus = "New" | "Shortlisted" | "Applied" | "Rejected";
 
@@ -142,6 +147,8 @@ export default function Home() {
   const [statusBreakdown, setStatusBreakdown] = useState<StatusPoint[]>([]);
   const [metrics, setMetrics] = useState({ appliedToday: 0, total: 0 });
   const [events, setEvents] = useState<OpportunityEvent[]>([]);
+  const [appliedByUser, setAppliedByUser] = useState<AppliedByUser[]>([]);
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,21 +177,24 @@ export default function Home() {
         if (filters.status) params.set("status", filters.status);
         if (filters.source) params.set("source", filters.source);
         if (filters.q) params.set("q", filters.q);
-        const [listRes, analyticsRes, metricsRes] = await Promise.all([
+        if (ownerFilter) params.set("owner", ownerFilter);
+        const [listRes, analyticsRes, metricsRes, appliedRes] = await Promise.all([
           authFetch(`/api/opportunities?${params.toString()}`, {
             cache: "no-store",
           }),
           authFetch(`/api/analytics/weekly`, { cache: "no-store" }),
           authFetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
+          authFetch(`/api/opportunities/applied-by-user`, { cache: "no-store" }),
         ]);
 
-        if (!listRes.ok || !analyticsRes.ok || !metricsRes.ok) {
+        if (!listRes.ok || !analyticsRes.ok || !metricsRes.ok || !appliedRes.ok) {
           throw new Error("Failed to load data.");
         }
 
         const listJson = await listRes.json();
         const analyticsJson = await analyticsRes.json();
         const metricsJson = await metricsRes.json();
+        const appliedJson = await appliedRes.json();
 
         if (ignore) return;
 
@@ -198,6 +208,7 @@ export default function Home() {
           appliedToday: metricsJson.appliedToday ?? 0,
           total: metricsJson.total ?? 0,
         });
+        setAppliedByUser((appliedJson.data ?? []) as AppliedByUser[]);
       } catch (err) {
         if (!ignore) {
           setError(err instanceof Error ? err.message : "Unexpected error.");
@@ -212,7 +223,7 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, [filters, today]);
+  }, [filters, today, ownerFilter]);
 
   useEffect(() => {
     let ignore = false;
@@ -401,6 +412,14 @@ export default function Home() {
                 >
                   Reset Filters
                 </button>
+                {ownerFilter && (
+                  <button
+                    className="rounded-full border border-[var(--line)] px-4 py-2 text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                    onClick={() => setOwnerFilter("")}
+                  >
+                    Clear User Filter
+                  </button>
+                )}
               </div>
             </div>
 
@@ -643,6 +662,35 @@ export default function Home() {
           </div>
 
           <aside className="flex flex-col gap-6">
+            <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
+              <h3 className="text-xl font-semibold">Applied by User</h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                Click a user to filter the pipeline
+              </p>
+              <div className="mt-4 flex flex-col gap-3">
+                {appliedByUser.map((entry) => (
+                  <button
+                    key={entry.user_id}
+                    className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm ${
+                      ownerFilter === entry.user_id
+                        ? "border-[var(--accent-2)] bg-white"
+                        : "border-[var(--line)] bg-[var(--card)]"
+                    }`}
+                    onClick={() => setOwnerFilter(entry.user_id)}
+                  >
+                    <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                      {entry.email ?? entry.user_id.slice(0, 6)}
+                    </span>
+                    <span className="text-sm font-semibold">{entry.count}</span>
+                  </button>
+                ))}
+                {!appliedByUser.length && (
+                  <div className="text-sm text-[var(--muted)]">
+                    No applied opportunities yet.
+                  </div>
+                )}
+              </div>
+            </div>
             <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
               <h3 className="text-xl font-semibold">Weekly Activity</h3>
               <p className="mt-1 text-sm text-[var(--muted)]">

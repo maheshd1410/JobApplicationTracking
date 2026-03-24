@@ -45,6 +45,11 @@ export async function GET(request: Request) {
     query = query.or(`company.ilike.%${q}%,title.ilike.%${q}%`);
   }
 
+  const owner = url.searchParams.get("owner");
+  if (owner) {
+    query = query.eq("owner_id", owner);
+  }
+
   const { data, error } = await query.order("created_at", { ascending: false });
 
   if (error) {

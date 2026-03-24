@@ -222,8 +222,8 @@ create index if not exists idx_opportunity_documents_tag_latest
   on opportunity_documents (opportunity_id, tag, is_latest);
 
 -- Backfill opportunity events for existing rows (one event per opportunity)
-insert into opportunity_events (owner_id, opportunity_id, status, event_type, created_at)
-select owner_id, id, status, 'status', created_at
+insert into opportunity_events (owner_id, workspace_id, opportunity_id, status, event_type, created_at)
+select owner_id, workspace_id, id, status, 'status', created_at
 from opportunities
 where not exists (
   select 1 from opportunity_events e where e.opportunity_id = opportunities.id
