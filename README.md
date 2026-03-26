@@ -310,10 +310,36 @@ create table if not exists opportunity_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists daily_plans (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  workspace_id uuid,
+  plan_date date not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists daily_tasks (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  workspace_id uuid,
+  plan_id uuid not null references daily_plans(id) on delete cascade,
+  title text not null,
+  category text not null default 'Execution',
+  status text not null default 'Pending',
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_opportunity_events_opportunity
   on opportunity_events (opportunity_id);
 create index if not exists idx_opportunity_events_date
   on opportunity_events (created_at);
+create index if not exists idx_daily_plans_date
+  on daily_plans (plan_date);
+create index if not exists idx_daily_tasks_plan
+  on daily_tasks (plan_id);
 
 -- One-time backfill for existing opportunity_documents rows
 with ranked as (
@@ -437,6 +463,8 @@ alter table daily_inventory add column if not exists owner_id uuid;
 alter table inventory_items add column if not exists owner_id uuid;
 alter table profile_performance add column if not exists owner_id uuid;
 alter table integrations add column if not exists owner_id uuid;
+alter table daily_plans add column if not exists owner_id uuid;
+alter table daily_tasks add column if not exists owner_id uuid;
 ```
 
 Phase 2 (Shared Opportunities only):
@@ -458,6 +486,8 @@ create table if not exists workspace_members (
 
 alter table opportunities add column if not exists workspace_id uuid;
 alter table opportunity_events add column if not exists workspace_id uuid;
+alter table daily_plans add column if not exists workspace_id uuid;
+alter table daily_tasks add column if not exists workspace_id uuid;
 ```
 
 Backfill existing rows for your user (replace with your email):

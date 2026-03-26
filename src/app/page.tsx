@@ -30,6 +30,11 @@ type AppliedByUser = {
   email: string | null;
   count: number;
 };
+type TodoSummary = {
+  total: number;
+  done: number;
+  score: number;
+};
 
 type OpportunityStatus = "New" | "Shortlisted" | "Applied" | "Rejected";
 
@@ -149,6 +154,11 @@ export default function Home() {
   const [events, setEvents] = useState<OpportunityEvent[]>([]);
   const [appliedByUser, setAppliedByUser] = useState<AppliedByUser[]>([]);
   const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const [todoSummary, setTodoSummary] = useState<TodoSummary>({
+    total: 0,
+    done: 0,
+    score: 0,
+  });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -178,16 +188,24 @@ export default function Home() {
         if (filters.source) params.set("source", filters.source);
         if (filters.q) params.set("q", filters.q);
         if (ownerFilter) params.set("owner", ownerFilter);
-        const [listRes, analyticsRes, metricsRes, appliedRes] = await Promise.all([
+        const [listRes, analyticsRes, metricsRes, appliedRes, todoRes] =
+          await Promise.all([
           authFetch(`/api/opportunities?${params.toString()}`, {
             cache: "no-store",
           }),
           authFetch(`/api/analytics/weekly`, { cache: "no-store" }),
           authFetch(`/api/metrics?date=${today}`, { cache: "no-store" }),
           authFetch(`/api/opportunities/applied-by-user`, { cache: "no-store" }),
+          authFetch(`/api/todos?date=${today}`, { cache: "no-store" }),
         ]);
 
-        if (!listRes.ok || !analyticsRes.ok || !metricsRes.ok || !appliedRes.ok) {
+        if (
+          !listRes.ok ||
+          !analyticsRes.ok ||
+          !metricsRes.ok ||
+          !appliedRes.ok ||
+          !todoRes.ok
+        ) {
           throw new Error("Failed to load data.");
         }
 
@@ -195,6 +213,7 @@ export default function Home() {
         const analyticsJson = await analyticsRes.json();
         const metricsJson = await metricsRes.json();
         const appliedJson = await appliedRes.json();
+        const todoJson = await todoRes.json();
 
         if (ignore) return;
 
@@ -209,6 +228,11 @@ export default function Home() {
           total: metricsJson.total ?? 0,
         });
         setAppliedByUser((appliedJson.data ?? []) as AppliedByUser[]);
+        const tasks = (todoJson.data?.tasks ?? []) as { status: string }[];
+        const total = tasks.length;
+        const done = tasks.filter((t) => t.status === "Done").length;
+        const score = total ? Math.round((done / total) * 100) : 0;
+        setTodoSummary({ total, done, score });
       } catch (err) {
         if (!ignore) {
           setError(err instanceof Error ? err.message : "Unexpected error.");
@@ -662,6 +686,24 @@ export default function Home() {
           </div>
 
           <aside className="flex flex-col gap-6">
+            <div className="rounded-[28px] border border-[var(--line)] bg-[var(--card)] p-6 shadow-[var(--shadow)]">
+              <h3 className="text-xl font-semibold">Daily To-Do</h3>
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {todoSummary.done}/{todoSummary.total} completed ({todoSummary.score}
+                %)
+              </p>
+              <div className="mt-4 flex items-center justify-between">
+                <span className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                  Today
+                </span>
+                <a
+                  className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                  href="/todos"
+                >
+                  Open
+                </a>
+              </div>
+            </div>
             <div className="rounded-[28px] border border-[var(--line)] bg-white/90 p-6 shadow-[var(--shadow)]">
               <h3 className="text-xl font-semibold">Applied by User</h3>
               <p className="mt-1 text-sm text-[var(--muted)]">

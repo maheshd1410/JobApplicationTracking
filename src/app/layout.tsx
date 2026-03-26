@@ -37,6 +37,7 @@ export default function RootLayout({
                 <a href="/">Dashboard</a>
                 <a href="/opportunities">Opportunities</a>
                 <a href="/inventory">Daily Inventory</a>
+                <a href="/todos">Daily To-Do</a>
                 <a href="/performance">Performance</a>
                 <a
                   className="rounded-full bg-[var(--accent-2)] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
