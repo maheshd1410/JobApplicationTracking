@@ -130,6 +130,23 @@ function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString();
 }
 
+function hoursBetween(start: string, end: string) {
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const diffMs = endDate.getTime() - startDate.getTime();
+  if (Number.isNaN(diffMs)) return 0;
+  return Math.max(diffMs / 3600000, 0);
+}
+
+function weekKey(dateStr: string) {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  const monday = new Date(date);
+  const diff = (day === 0 ? -6 : 1) - day;
+  monday.setDate(date.getDate() + diff);
+  return monday.toISOString().slice(0, 10);
+}
+
 export default function OpportunityDetailPage() {
   const opportunityId =
     typeof window !== "undefined"
@@ -165,6 +182,30 @@ export default function OpportunityDetailPage() {
     notes: "",
   });
   const [prepEditing, setPrepEditing] = useState<PrepEntry | null>(null);
+
+  const prepTotalHours = prepEntries.reduce(
+    (sum, entry) => sum + hoursBetween(entry.start_time, entry.end_time),
+    0
+  );
+  const prepCategoryTotals = prepEntries.reduce<Record<string, number>>(
+    (acc, entry) => {
+      const key = entry.category || "Other";
+      acc[key] = (acc[key] ?? 0) + hoursBetween(entry.start_time, entry.end_time);
+      return acc;
+    },
+    {}
+  );
+  const prepWeeklyTotals = prepEntries.reduce<Record<string, number>>(
+    (acc, entry) => {
+      const key = weekKey(entry.start_time);
+      acc[key] = (acc[key] ?? 0) + hoursBetween(entry.start_time, entry.end_time);
+      return acc;
+    },
+    {}
+  );
+  const prepWeeklyRows = Object.entries(prepWeeklyTotals)
+    .sort(([a], [b]) => (a < b ? 1 : -1))
+    .slice(0, 6);
 
   const loadOpportunity = async () => {
     if (!opportunityId) return;
@@ -852,6 +893,64 @@ export default function OpportunityDetailPage() {
 
                 <div className="flex flex-col gap-3">
                   <h2 className="text-lg font-semibold">Prep Log</h2>
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Total Hours
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {prepTotalHours.toFixed(1)}
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Category Totals
+                      </p>
+                      <div className="mt-2 flex flex-col gap-1 text-sm">
+                        {Object.entries(prepCategoryTotals).map(
+                          ([category, hours]) => (
+                            <div
+                              key={category}
+                              className="flex items-center justify-between"
+                            >
+                              <span>{category}</span>
+                              <span className="text-[var(--muted)]">
+                                {hours.toFixed(1)}h
+                              </span>
+                            </div>
+                          )
+                        )}
+                        {!Object.keys(prepCategoryTotals).length && (
+                          <span className="text-sm text-[var(--muted)]">
+                            No categories yet.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                        Weekly Summary
+                      </p>
+                      <div className="mt-2 flex flex-col gap-1 text-sm">
+                        {prepWeeklyRows.map(([weekStart, hours]) => (
+                          <div
+                            key={weekStart}
+                            className="flex items-center justify-between"
+                          >
+                            <span>{weekStart}</span>
+                            <span className="text-[var(--muted)]">
+                              {hours.toFixed(1)}h
+                            </span>
+                          </div>
+                        ))}
+                        {!prepWeeklyRows.length && (
+                          <span className="text-sm text-[var(--muted)]">
+                            No prep this week.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                   {loading && (
                     <p className="text-sm text-[var(--muted)]">Loading...</p>
                   )}
