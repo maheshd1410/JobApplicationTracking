@@ -10,6 +10,7 @@ const tabs = [
   { key: "STUDY", label: "Study" },
   { key: "NOTES", label: "Notes" },
   { key: "CV", label: "CV Builder" },
+  { key: "PREP", label: "Prep Tracker" },
   { key: "DOCS", label: "Shared Documents" },
 ] as const;
 
@@ -95,6 +96,17 @@ type CvRow = {
   updated_at: string;
 };
 
+type PrepEntry = {
+  id: string;
+  topic: string;
+  category: string;
+  start_time: string;
+  end_time: string;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 const defaultCvData: CvData = {
   name: "",
   title: "",
@@ -144,6 +156,15 @@ export default function OpportunityDetailPage() {
   const [cvSaving, setCvSaving] = useState(false);
   const [cvPhotoUploading, setCvPhotoUploading] = useState(false);
   const [cvPdfGenerating, setCvPdfGenerating] = useState(false);
+  const [prepEntries, setPrepEntries] = useState<PrepEntry[]>([]);
+  const [prepForm, setPrepForm] = useState({
+    topic: "",
+    category: "System Design",
+    start_time: "",
+    end_time: "",
+    notes: "",
+  });
+  const [prepEditing, setPrepEditing] = useState<PrepEntry | null>(null);
 
   const loadOpportunity = async () => {
     if (!opportunityId) return;
@@ -194,6 +215,18 @@ export default function OpportunityDetailPage() {
         }
         return;
       }
+      if (type === "PREP") {
+        const res = await authFetch(
+          `/api/opportunities/${opportunityId}/prep`,
+          { cache: "no-store" }
+        );
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.error || "Failed to load prep entries.");
+        }
+        setPrepEntries(payload.data ?? []);
+        return;
+      }
 
       const res = await authFetch(
         `/api/opportunities/${opportunityId}/content?type=${type}`,
@@ -227,6 +260,14 @@ export default function OpportunityDetailPage() {
     setDocFile(null);
     setPreviewDocId(null);
     setCvPhotoFile(null);
+    setPrepEditing(null);
+    setPrepForm({
+      topic: "",
+      category: "System Design",
+      start_time: "",
+      end_time: "",
+      notes: "",
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -235,8 +276,8 @@ export default function OpportunityDetailPage() {
       setError("Missing opportunity id.");
       return;
     }
-    if (activeTab === "DOCS" || activeTab === "CV") {
-      setError("Use the CV builder controls to save CV content or documents.");
+    if (activeTab === "DOCS" || activeTab === "CV" || activeTab === "PREP") {
+      setError("Use the section controls to save entries.");
       return;
     }
     if (!form.title.trim() || !form.content.trim()) {
@@ -568,6 +609,96 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handlePrepSave = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    if (!prepForm.topic.trim() || !prepForm.start_time || !prepForm.end_time) {
+      setError("Topic, start time, and end time are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        topic: prepForm.topic.trim(),
+        category: prepForm.category,
+        start_time: prepForm.start_time,
+        end_time: prepForm.end_time,
+        notes: prepForm.notes.trim() ? prepForm.notes.trim() : null,
+      };
+      const res = await authFetch(
+        prepEditing
+          ? `/api/opportunities/${opportunityId}/prep/${prepEditing.id}`
+          : `/api/opportunities/${opportunityId}/prep`,
+        {
+          method: prepEditing ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result?.error || "Failed to save prep entry.");
+      }
+      if (prepEditing) {
+        setPrepEntries((prev) =>
+          prev.map((item) => (item.id === prepEditing.id ? result.data : item))
+        );
+      } else {
+        setPrepEntries((prev) => [result.data, ...prev]);
+      }
+      setPrepEditing(null);
+      setPrepForm({
+        topic: "",
+        category: "System Design",
+        start_time: "",
+        end_time: "",
+        notes: "",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePrepEdit = (entry: PrepEntry) => {
+    setPrepEditing(entry);
+    setPrepForm({
+      topic: entry.topic,
+      category: entry.category,
+      start_time: entry.start_time,
+      end_time: entry.end_time,
+      notes: entry.notes ?? "",
+    });
+  };
+
+  const handlePrepDelete = async (entryId: string) => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/prep/${entryId}`,
+        { method: "DELETE" }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to delete entry.");
+      }
+      setPrepEntries((prev) => prev.filter((item) => item.id !== entryId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen px-6 py-10 text-[15px] md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -621,7 +752,155 @@ export default function OpportunityDetailPage() {
           )}
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-            {activeTab === "CV" ? (
+            {activeTab === "PREP" ? (
+              <div className="lg:col-span-2 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+                  <h2 className="text-lg font-semibold">
+                    {prepEditing ? "Edit Prep Entry" : "New Prep Entry"}
+                  </h2>
+                  <div className="mt-4 flex flex-col gap-3">
+                    <input
+                      className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      placeholder="Preparation topic"
+                      value={prepForm.topic}
+                      onChange={(e) =>
+                        setPrepForm((prev) => ({ ...prev, topic: e.target.value }))
+                      }
+                    />
+                    <select
+                      className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      value={prepForm.category}
+                      onChange={(e) =>
+                        setPrepForm((prev) => ({
+                          ...prev,
+                          category: e.target.value,
+                        }))
+                      }
+                    >
+                      {[
+                        "System Design",
+                        "Behavioral/STAR",
+                        "Coding",
+                        "Leadership",
+                        "Domain",
+                      ].map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        value={prepForm.start_time}
+                        onChange={(e) =>
+                          setPrepForm((prev) => ({
+                            ...prev,
+                            start_time: e.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        value={prepForm.end_time}
+                        onChange={(e) =>
+                          setPrepForm((prev) => ({
+                            ...prev,
+                            end_time: e.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <textarea
+                      className="min-h-[120px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                      placeholder="Notes or outcome"
+                      value={prepForm.notes}
+                      onChange={(e) =>
+                        setPrepForm((prev) => ({ ...prev, notes: e.target.value }))
+                      }
+                    />
+                    <div className="flex items-center gap-3">
+                      <button
+                        className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                        onClick={handlePrepSave}
+                        disabled={saving}
+                      >
+                        {saving ? "Saving..." : prepEditing ? "Update" : "Save"}
+                      </button>
+                      {prepEditing && (
+                        <button
+                          className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]"
+                          onClick={() => {
+                            setPrepEditing(null);
+                            setPrepForm({
+                              topic: "",
+                              category: "System Design",
+                              start_time: "",
+                              end_time: "",
+                              notes: "",
+                            });
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <h2 className="text-lg font-semibold">Prep Log</h2>
+                  {loading && (
+                    <p className="text-sm text-[var(--muted)]">Loading...</p>
+                  )}
+                  {!loading && !prepEntries.length && (
+                    <p className="text-sm text-[var(--muted)]">
+                      No preparation entries yet.
+                    </p>
+                  )}
+                  {prepEntries.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <h3 className="text-sm font-semibold">{entry.topic}</h3>
+                          <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                            {entry.category}
+                          </p>
+                          <p className="mt-2 text-xs text-[var(--muted)]">
+                            {new Date(entry.start_time).toLocaleString()} -{" "}
+                            {new Date(entry.end_time).toLocaleString()}
+                          </p>
+                          {entry.notes && (
+                            <p className="mt-2 text-sm text-[var(--muted)] whitespace-pre-wrap">
+                              {entry.notes}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex flex-col gap-2">
+                          <button
+                            className="text-xs uppercase tracking-[0.2em] text-[var(--accent-2)]"
+                            onClick={() => handlePrepEdit(entry)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="text-xs uppercase tracking-[0.2em] text-red-500"
+                            onClick={() => handlePrepDelete(entry.id)}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : activeTab === "CV" ? (
               <div className="lg:col-span-2 grid gap-6">
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
