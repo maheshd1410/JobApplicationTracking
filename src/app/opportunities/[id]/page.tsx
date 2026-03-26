@@ -107,6 +107,17 @@ type PrepEntry = {
   updated_at: string;
 };
 
+type PrepStep = {
+  id: string;
+  title: string;
+  category: string;
+  target_time: string;
+  estimated_hours: number | null;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+};
+
 const defaultCvData: CvData = {
   name: "",
   title: "",
@@ -182,6 +193,13 @@ export default function OpportunityDetailPage() {
     notes: "",
   });
   const [prepEditing, setPrepEditing] = useState<PrepEntry | null>(null);
+  const [prepSteps, setPrepSteps] = useState<PrepStep[]>([]);
+  const [stepForm, setStepForm] = useState({
+    title: "",
+    category: "System Design",
+    target_time: "",
+    estimated_hours: "",
+  });
 
   const prepTotalHours = prepEntries.reduce(
     (sum, entry) => sum + hoursBetween(entry.start_time, entry.end_time),
@@ -266,6 +284,15 @@ export default function OpportunityDetailPage() {
           throw new Error(payload?.error || "Failed to load prep entries.");
         }
         setPrepEntries(payload.data ?? []);
+        const stepsRes = await authFetch(
+          `/api/opportunities/${opportunityId}/prep-steps`,
+          { cache: "no-store" }
+        );
+        const stepsPayload = await stepsRes.json();
+        if (!stepsRes.ok) {
+          throw new Error(stepsPayload?.error || "Failed to load prep steps.");
+        }
+        setPrepSteps(stepsPayload.data ?? []);
         return;
       }
 
@@ -308,6 +335,12 @@ export default function OpportunityDetailPage() {
       start_time: "",
       end_time: "",
       notes: "",
+    });
+    setStepForm({
+      title: "",
+      category: "System Design",
+      target_time: "",
+      estimated_hours: "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -740,6 +773,100 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handleStepSave = async () => {
+    if (!opportunityId) {
+      setError("Missing opportunity id.");
+      return;
+    }
+    if (!stepForm.title.trim() || !stepForm.target_time) {
+      setError("Title and target time are required.");
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const payload = {
+        title: stepForm.title.trim(),
+        category: stepForm.category,
+        target_time: stepForm.target_time,
+        estimated_hours: stepForm.estimated_hours
+          ? Number(stepForm.estimated_hours)
+          : null,
+      };
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/prep-steps`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result?.error || "Failed to save prep step.");
+      }
+      setPrepSteps((prev) => [result.data, ...prev]);
+      setStepForm({
+        title: "",
+        category: "System Design",
+        target_time: "",
+        estimated_hours: "",
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStepProgress = async (step: PrepStep, progress: number) => {
+    if (!opportunityId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/prep-steps/${step.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ progress }),
+        }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to update progress.");
+      }
+      setPrepSteps((prev) =>
+        prev.map((item) => (item.id === step.id ? payload.data : item))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStepDelete = async (stepId: string) => {
+    if (!opportunityId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/prep-steps/${stepId}`,
+        { method: "DELETE" }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to delete step.");
+      }
+      setPrepSteps((prev) => prev.filter((item) => item.id !== stepId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen px-6 py-10 text-[15px] md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -893,6 +1020,125 @@ export default function OpportunityDetailPage() {
 
                 <div className="flex flex-col gap-3">
                   <h2 className="text-lg font-semibold">Prep Log</h2>
+                  <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
+                      Prep Plan
+                    </h3>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <input
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Prep step title"
+                        value={stepForm.title}
+                        onChange={(e) =>
+                          setStepForm((prev) => ({ ...prev, title: e.target.value }))
+                        }
+                      />
+                      <select
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        value={stepForm.category}
+                        onChange={(e) =>
+                          setStepForm((prev) => ({
+                            ...prev,
+                            category: e.target.value,
+                          }))
+                        }
+                      >
+                        {[
+                          "System Design",
+                          "Behavioral/STAR",
+                          "Coding",
+                          "Leadership",
+                          "Domain",
+                        ].map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        type="datetime-local"
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        value={stepForm.target_time}
+                        onChange={(e) =>
+                          setStepForm((prev) => ({
+                            ...prev,
+                            target_time: e.target.value,
+                          }))
+                        }
+                      />
+                      <input
+                        type="number"
+                        className="w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                        placeholder="Estimated hours"
+                        value={stepForm.estimated_hours}
+                        onChange={(e) =>
+                          setStepForm((prev) => ({
+                            ...prev,
+                            estimated_hours: e.target.value,
+                          }))
+                        }
+                        step="0.25"
+                        min="0"
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center gap-3">
+                      <button
+                        className="rounded-full bg-[var(--accent)] px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-white"
+                        onClick={handleStepSave}
+                        disabled={saving}
+                      >
+                        {saving ? "Saving..." : "Add Step"}
+                      </button>
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-3">
+                      {prepSteps.map((step) => (
+                        <div
+                          key={step.id}
+                          className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4"
+                        >
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <h4 className="text-sm font-semibold">{step.title}</h4>
+                              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                                {step.category}
+                              </p>
+                              <p className="mt-2 text-xs text-[var(--muted)]">
+                                Target: {new Date(step.target_time).toLocaleString()}
+                              </p>
+                            </div>
+                            <button
+                              className="text-xs uppercase tracking-[0.2em] text-red-500"
+                              onClick={() => handleStepDelete(step.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          <div className="mt-3">
+                            <input
+                              type="range"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={step.progress}
+                              onChange={(e) =>
+                                handleStepProgress(step, Number(e.target.value))
+                              }
+                              className="w-full"
+                            />
+                            <div className="mt-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                              Progress: {step.progress}%
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {!prepSteps.length && (
+                        <p className="text-sm text-[var(--muted)]">
+                          No prep steps yet.
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   <div className="grid gap-3 md:grid-cols-3">
                     <div className="rounded-2xl border border-[var(--line)] bg-white/90 p-4">
                       <p className="text-xs uppercase tracking-[0.2em] text-[var(--muted)]">

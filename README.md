@@ -345,6 +345,19 @@ create table if not exists prep_sessions (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists prep_steps (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  title text not null,
+  category text not null default 'System Design',
+  target_time timestamptz not null,
+  estimated_hours numeric,
+  progress integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_opportunity_events_opportunity
   on opportunity_events (opportunity_id);
 create index if not exists idx_opportunity_events_date
@@ -355,6 +368,8 @@ create index if not exists idx_daily_tasks_plan
   on daily_tasks (plan_id);
 create index if not exists idx_prep_sessions_opportunity
   on prep_sessions (opportunity_id);
+create index if not exists idx_prep_steps_opportunity
+  on prep_steps (opportunity_id);
 
 -- One-time backfill for existing opportunity_documents rows
 with ranked as (
