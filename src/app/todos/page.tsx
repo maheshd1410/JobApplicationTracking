@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { authFetch } from "@/lib/authFetch";
 
-const categories = ["Execution", "Preparation", "Admin"] as const;
+const categories = ["Execution", "Preparation", "Technical Hands On", "Admin"] as const;
 
 type Task = {
   id: string;
