@@ -358,6 +358,17 @@ create table if not exists prep_steps (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists study_assets (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null,
+  opportunity_id uuid not null references opportunities(id) on delete cascade,
+  image_path text not null,
+  image_url text,
+  caption text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_opportunity_events_opportunity
   on opportunity_events (opportunity_id);
 create index if not exists idx_opportunity_events_date
@@ -370,6 +381,8 @@ create index if not exists idx_prep_sessions_opportunity
   on prep_sessions (opportunity_id);
 create index if not exists idx_prep_steps_opportunity
   on prep_steps (opportunity_id);
+create index if not exists idx_study_assets_opportunity
+  on study_assets (opportunity_id);
 
 -- One-time backfill for existing opportunity_documents rows
 with ranked as (
@@ -477,6 +490,9 @@ We store passport-size photos for CV rendering there.
 
 Create a public bucket named `cv-pdfs` in Supabase Storage.
 We store generated CV PDFs there.
+
+Create a public bucket named `study-screenshots` in Supabase Storage.
+We store pasted study screenshots there.
 
 ## Multi-User Setup (Phase 1)
 

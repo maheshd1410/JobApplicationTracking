@@ -118,6 +118,13 @@ type PrepStep = {
   updated_at: string;
 };
 
+type StudyAsset = {
+  id: string;
+  image_url: string | null;
+  caption: string | null;
+  created_at: string;
+};
+
 const defaultCvData: CvData = {
   name: "",
   title: "",
@@ -200,6 +207,8 @@ export default function OpportunityDetailPage() {
     target_time: "",
     estimated_hours: "",
   });
+  const [studyAssets, setStudyAssets] = useState<StudyAsset[]>([]);
+  const [studyCaption, setStudyCaption] = useState("");
 
   const prepTotalHours = prepEntries.reduce(
     (sum, entry) => sum + hoursBetween(entry.start_time, entry.end_time),
@@ -295,6 +304,18 @@ export default function OpportunityDetailPage() {
         setPrepSteps(stepsPayload.data ?? []);
         return;
       }
+      if (type === "STUDY") {
+        const res = await authFetch(
+          `/api/opportunities/${opportunityId}/study-assets`,
+          { cache: "no-store" }
+        );
+        const payload = await res.json();
+        if (!res.ok) {
+          throw new Error(payload?.error || "Failed to load study assets.");
+        }
+        setStudyAssets(payload.data ?? []);
+        return;
+      }
 
       const res = await authFetch(
         `/api/opportunities/${opportunityId}/content?type=${type}`,
@@ -342,6 +363,7 @@ export default function OpportunityDetailPage() {
       target_time: "",
       estimated_hours: "",
     });
+    setStudyCaption("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -867,6 +889,64 @@ export default function OpportunityDetailPage() {
     }
   };
 
+  const handleStudyPaste = async (
+    event: React.ClipboardEvent<HTMLDivElement>
+  ) => {
+    if (!opportunityId) return;
+    const item = Array.from(event.clipboardData.items).find((entry) =>
+      entry.type.startsWith("image/")
+    );
+    if (!item) return;
+    const file = item.getAsFile();
+    if (!file) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const data = new FormData();
+      data.append("file", file);
+      data.append("caption", studyCaption.trim());
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/study-assets`,
+        {
+          method: "POST",
+          body: data,
+        }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to upload screenshot.");
+      }
+      setStudyAssets((prev) => [payload.data, ...prev]);
+      setStudyCaption("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleStudyDelete = async (assetId: string) => {
+    if (!opportunityId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await authFetch(
+        `/api/opportunities/${opportunityId}/study-assets/${assetId}`,
+        { method: "DELETE" }
+      );
+      const payload = await res.json();
+      if (!res.ok) {
+        throw new Error(payload?.error || "Failed to delete screenshot.");
+      }
+      setStudyAssets((prev) => prev.filter((asset) => asset.id !== assetId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unexpected error.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="min-h-screen px-6 py-10 text-[15px] md:px-10">
       <div className="mx-auto flex max-w-6xl flex-col gap-8">
@@ -920,7 +1000,63 @@ export default function OpportunityDetailPage() {
           )}
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_1.1fr]">
-            {activeTab === "PREP" ? (
+            {activeTab === "STUDY" ? (
+              <div className="lg:col-span-2 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
+                  <h2 className="text-lg font-semibold">Study Screenshots</h2>
+                  <p className="mt-2 text-sm text-[var(--muted)]">
+                    Paste screenshots here to store them for this opportunity.
+                  </p>
+                  <textarea
+                    className="mt-4 min-h-[120px] w-full rounded-xl border border-[var(--line)] bg-transparent px-3 py-2"
+                    placeholder="Optional caption for the next paste"
+                    value={studyCaption}
+                    onChange={(e) => setStudyCaption(e.target.value)}
+                  />
+                  <div
+                    className="mt-4 rounded-2xl border border-dashed border-[var(--line)] bg-white/70 px-4 py-6 text-sm text-[var(--muted)]"
+                    onPaste={handleStudyPaste}
+                  >
+                    Click here, then paste (Ctrl+V) a screenshot.
+                  </div>
+                </div>
+                <div className="flex flex-col gap-3">
+                  <h2 className="text-lg font-semibold">Saved Screenshots</h2>
+                  {!studyAssets.length && (
+                    <p className="text-sm text-[var(--muted)]">
+                      No screenshots yet.
+                    </p>
+                  )}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    {studyAssets.map((asset) => (
+                      <div
+                        key={asset.id}
+                        className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-3"
+                      >
+                        {asset.image_url && (
+                          <img
+                            src={asset.image_url}
+                            alt="Study screenshot"
+                            className="h-40 w-full rounded-xl object-cover"
+                          />
+                        )}
+                        {asset.caption && (
+                          <p className="mt-2 text-sm text-[var(--muted)]">
+                            {asset.caption}
+                          </p>
+                        )}
+                        <button
+                          className="mt-3 text-xs uppercase tracking-[0.2em] text-red-500"
+                          onClick={() => handleStudyDelete(asset.id)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : activeTab === "PREP" ? (
               <div className="lg:col-span-2 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--card)] p-4">
                   <h2 className="text-lg font-semibold">
