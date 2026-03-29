@@ -209,6 +209,8 @@ export default function OpportunityDetailPage() {
   });
   const [studyAssets, setStudyAssets] = useState<StudyAsset[]>([]);
   const [studyCaption, setStudyCaption] = useState("");
+  const [studyPreview, setStudyPreview] = useState<StudyAsset | null>(null);
+  const [studyZoom, setStudyZoom] = useState(1);
 
   const prepTotalHours = prepEntries.reduce(
     (sum, entry) => sum + hoursBetween(entry.start_time, entry.end_time),
@@ -364,6 +366,8 @@ export default function OpportunityDetailPage() {
       estimated_hours: "",
     });
     setStudyCaption("");
+    setStudyPreview(null);
+    setStudyZoom(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -1037,7 +1041,11 @@ export default function OpportunityDetailPage() {
                           <img
                             src={asset.image_url}
                             alt="Study screenshot"
-                            className="h-40 w-full rounded-xl object-cover"
+                            className="h-40 w-full cursor-zoom-in rounded-xl object-cover"
+                            onClick={() => {
+                              setStudyPreview(asset);
+                              setStudyZoom(1);
+                            }}
                           />
                         )}
                         {asset.caption && (
@@ -2006,6 +2014,63 @@ export default function OpportunityDetailPage() {
                   ))}
                 </div>
               </>
+            )}
+            {studyPreview?.image_url && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6"
+                onClick={() => setStudyPreview(null)}
+              >
+                <div
+                  className="max-h-full w-full max-w-5xl rounded-2xl bg-white p-4"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm font-semibold">Study Screenshot</div>
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[var(--muted)]">
+                      <button
+                        className="rounded-full border border-[var(--line)] px-3 py-1"
+                        onClick={() =>
+                          setStudyZoom((prev) => Math.max(0.5, prev - 0.1))
+                        }
+                      >
+                        -
+                      </button>
+                      <span>{Math.round(studyZoom * 100)}%</span>
+                      <button
+                        className="rounded-full border border-[var(--line)] px-3 py-1"
+                        onClick={() =>
+                          setStudyZoom((prev) => Math.min(3, prev + 0.1))
+                        }
+                      >
+                        +
+                      </button>
+                      <button
+                        className="rounded-full border border-[var(--line)] px-3 py-1"
+                        onClick={() => setStudyZoom(1)}
+                      >
+                        Reset
+                      </button>
+                      <button
+                        className="rounded-full border border-[var(--line)] px-3 py-1"
+                        onClick={() => setStudyPreview(null)}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-4 max-h-[75vh] overflow-auto rounded-xl border border-[var(--line)] bg-black/5 p-4">
+                    <img
+                      src={studyPreview.image_url}
+                      alt="Study full"
+                      style={{
+                        transform: `scale(${studyZoom})`,
+                        transformOrigin: "center top",
+                      }}
+                      className="mx-auto block max-w-full"
+                    />
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </section>
